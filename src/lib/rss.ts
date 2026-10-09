@@ -213,3 +213,21 @@ export async function fetchRssFeed(channelId: string = "home"): Promise<NewsItem
     return [];
   }
 }
+
+export function getArticleSlug(articleUrl: string): string {
+  try {
+    const u = new URL(articleUrl);
+    return u.pathname.replace(/^\//, "").replace(/\.html$/, "");
+  } catch {
+    return encodeURIComponent(articleUrl);
+  }
+}
+
+export function reconstructArticleUrl(slug: string[] | string): string {
+  if (Array.isArray(slug)) {
+    const path = slug.join("/").replace(/\.html$/, "") + ".html";
+    return `https://e.vnexpress.net/${path}`;
+  }
+  const clean = slug.replace(/\.html$/, "") + ".html";
+  return `https://e.vnexpress.net/${clean}`;
+}

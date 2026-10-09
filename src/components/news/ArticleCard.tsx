@@ -1,13 +1,14 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { NewsItem } from "@/types/news";
 import { Badge } from "@/components/ui/badge";
 import { Clock, BookOpen, Sparkles, ArrowRight } from "lucide-react";
+import { getArticleSlug } from "@/lib/rss";
 
 interface ArticleCardProps {
   article: NewsItem;
-  onReadArticle: (article: NewsItem) => void;
   isRead?: boolean;
   showImages?: boolean;
 }
@@ -22,11 +23,11 @@ const CEFR_CONFIG: Record<string, { label: string; color: string; desc: string }
 
 export function ArticleCard({
   article,
-  onReadArticle,
   isRead = false,
   showImages = true
 }: ArticleCardProps) {
   const cefr = CEFR_CONFIG[article.cefrLevel] || CEFR_CONFIG.B1;
+  const slug = getArticleSlug(article.link);
 
   // Format date cleanly
   const formattedDate = (() => {
@@ -44,9 +45,9 @@ export function ArticleCard({
   })();
 
   return (
-    <div 
-      onClick={() => onReadArticle(article)}
-      className="group relative flex flex-col bg-card rounded-2xl border border-border/70 hover:border-rose-500/40 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer hover:-translate-y-1"
+    <Link 
+      href={`/article/${slug}`}
+      className="group relative flex flex-col bg-card rounded-2xl border border-border/70 hover:border-rose-500/40 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer hover:-translate-y-1 block"
     >
       {/* Thumbnail Container (Only rendered when showImages is true) */}
       {showImages ? (
@@ -146,6 +147,6 @@ export function ArticleCard({
           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
         </div>
       </div>
-    </div>
+    </Link>
   );
 }

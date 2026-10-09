@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import { NewsItem, ArticleDetail, SavedWord, UserLearningStats } from "@/types/news";
 import { Header } from "@/components/layout/Header";
 import { ArticleCard } from "./ArticleCard";
-import { InteractiveReader } from "@/components/reader/InteractiveReader";
 import { VocabularyDrawer } from "@/components/vocabulary/VocabularyDrawer";
 import { FlashcardModal } from "@/components/vocabulary/FlashcardModal";
 import { QuickQuizModal } from "@/components/vocabulary/QuickQuizModal";
@@ -49,10 +48,6 @@ export function NewsDashboard({ initialArticles, initialChannel }: NewsDashboard
   // App Settings: Dark Theme & Show Images
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
-  // Reader state
-  const [currentArticle, setCurrentArticle] = useState<ArticleDetail | null>(null);
-  const [isLoadingArticleDetail, setIsLoadingArticleDetail] = useState(false);
 
   // Vocabulary & Modal states
   const [savedWords, setSavedWords] = useState<SavedWord[]>([]);
@@ -116,47 +111,6 @@ export function NewsDashboard({ initialArticles, initialChannel }: NewsDashboard
     }
   };
 
-  // Open an article to read
-  const handleReadArticle = async (newsItem: NewsItem) => {
-    setIsLoadingArticleDetail(true);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-
-    try {
-      const res = await fetch(`/api/article?url=${encodeURIComponent(newsItem.link)}`);
-      const data = await res.json();
-      if (data.success && data.article) {
-        setCurrentArticle(data.article);
-      } else {
-        setCurrentArticle({
-          id: newsItem.link,
-          title: newsItem.title,
-          link: newsItem.link,
-          pubDate: newsItem.pubDate,
-          category: newsItem.category,
-          lead: newsItem.description,
-          thumbnail: newsItem.thumbnail,
-          paragraphs: [
-            { id: "p-0", text: newsItem.description },
-            { id: "p-1", text: "Vui lòng xem bài viết gốc trên VnExpress hoặc thử lại với bài báo khác." }
-          ],
-          wordCount: newsItem.wordCount,
-          cefrLevel: newsItem.cefrLevel,
-          keyVocabulary: []
-        });
-      }
-    } catch (e) {
-      console.error("Failed to fetch full article:", e);
-    } finally {
-      setIsLoadingArticleDetail(false);
-    }
-  };
-
-  // Mark article read
-  const handleMarkArticleRead = (articleId: string) => {
-    markArticleRead(articleId);
-    refreshData();
-  };
-
   // Filter articles
   const filteredArticles = articles.filter((a) => {
     const matchesSearch =
@@ -165,19 +119,6 @@ export function NewsDashboard({ initialArticles, initialChannel }: NewsDashboard
     const matchesCefr = cefrFilter === "all" || a.cefrLevel === cefrFilter;
     return matchesSearch && matchesCefr;
   });
-
-  // If reading an article, show InteractiveReader
-  if (currentArticle) {
-    return (
-      <InteractiveReader
-        article={currentArticle}
-        onBack={() => setCurrentArticle(null)}
-        onMarkRead={handleMarkArticleRead}
-        isRead={userStats.readArticleIds.includes(currentArticle.id)}
-        showImages={appSettings.showImages}
-      />
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col transition-colors duration-200">
@@ -281,13 +222,6 @@ export function NewsDashboard({ initialArticles, initialChannel }: NewsDashboard
           </div>
         </section>
 
-        {/* Loading Spinner for full article click */}
-        {isLoadingArticleDetail && (
-          <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm text-white gap-3 animate-in fade-in">
-            <Loader2 className="w-10 h-10 animate-spin text-rose-500" />
-            <p className="text-sm font-semibold">Đang tải và phân tích từ vựng bài báo...</p>
-          </div>
-        )}
 
         {/* Articles Grid */}
         {isLoadingArticles ? (
@@ -307,7 +241,6 @@ export function NewsDashboard({ initialArticles, initialChannel }: NewsDashboard
               <ArticleCard
                 key={article.id}
                 article={article}
-                onReadArticle={handleReadArticle}
                 isRead={userStats.readArticleIds.includes(article.id)}
                 showImages={appSettings.showImages}
               />
