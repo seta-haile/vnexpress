@@ -7,6 +7,24 @@ export interface RssChannel {
   description: string;
 }
 
+export interface PublicationSource {
+  id: string; // 'vnexpress' | 'hony'
+  name: string;
+  shortName: string;
+  badge: string;
+  tagline: string;
+  description: string;
+  logoText: string;
+  badgeColor: string;
+  gradient: string;
+  rssUrl: string;
+  websiteUrl: string;
+  channels: RssChannel[];
+  cefrRange: string;
+  readingStyle: string;
+  coverImage: string;
+}
+
 export interface NewsItem {
   id: string;
   title: string;
@@ -19,6 +37,8 @@ export interface NewsItem {
   thumbnail: string;
   category: string;
   channelId: string;
+  sourceId?: string; // 'vnexpress' | 'hony'
+  sourceName?: string; // 'VnExpress International' | 'Humans of New York'
   readingTimeMinutes: number;
   wordCount: number;
   cefrLevel: 'A2' | 'B1' | 'B2' | 'C1' | 'C2';

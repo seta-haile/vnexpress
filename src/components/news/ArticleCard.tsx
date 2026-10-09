@@ -66,6 +66,15 @@ export function ArticleCard({
 
           {/* Badges on Thumbnail */}
           <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
+            {article.sourceId === "hony" ? (
+              <Badge className="bg-amber-600/90 backdrop-blur-md text-white border-none text-[10px] font-bold">
+                HONY
+              </Badge>
+            ) : article.sourceId === "vnexpress" ? (
+              <Badge className="bg-rose-600/90 backdrop-blur-md text-white border-none text-[10px] font-bold">
+                VnExpress
+              </Badge>
+            ) : null}
             <Badge className="bg-black/60 backdrop-blur-md text-white border-white/20 text-[11px] font-medium">
               {article.category}
             </Badge>

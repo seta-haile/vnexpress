@@ -22,6 +22,8 @@ import { UserMenu } from "@/components/auth/UserMenu";
 interface HeaderProps {
   activeChannel: string;
   onSelectChannel: (channelId: string) => void;
+  activeSource?: "all" | "vnexpress" | "hony";
+  onSelectSource?: (source: "all" | "vnexpress" | "hony") => void;
   savedWordsCount: number;
   onOpenVocabulary: () => void;
   onOpenFlashcards: () => void;
@@ -35,6 +37,8 @@ interface HeaderProps {
 export function Header({
   activeChannel,
   onSelectChannel,
+  activeSource = "all",
+  onSelectSource,
   savedWordsCount,
   onOpenVocabulary,
   onOpenFlashcards,
@@ -55,6 +59,7 @@ export function Header({
           <div className="flex items-center gap-3">
             <Link 
               href="/" 
+              onClick={() => onSelectSource && onSelectSource("all")}
               className="flex items-center gap-2.5 group focus:outline-none"
             >
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 via-rose-500 to-amber-500 flex items-center justify-center text-white shadow-md shadow-rose-500/20 group-hover:scale-105 transition-transform duration-300">
@@ -65,12 +70,12 @@ export function Header({
                   <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-red-600 via-rose-600 to-slate-900 dark:to-white bg-clip-text text-transparent">
                     VnE Reader
                   </span>
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-medium tracking-wide bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 border-rose-200 dark:border-rose-800">
-                    ENGLISH
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-bold tracking-wide bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 border-rose-200 dark:border-rose-800">
+                    MULTI-NEWS
                   </Badge>
                 </div>
                 <span className="text-[11px] text-muted-foreground hidden sm:inline-block">
-                  Học tiếng Anh qua báo VnExpress International
+                  Đọc báo tiếng Anh đa nguồn: VnExpress & Humans of NY
                 </span>
               </div>
             </Link>
@@ -175,24 +180,67 @@ export function Header({
           </div>
         </div>
 
-        {/* Category Pills Bar */}
-        <div className="flex items-center space-x-1.5 overflow-x-auto py-2 no-scrollbar border-t border-border/30">
-          {RSS_CHANNELS.map((ch) => {
-            const isActive = activeChannel === ch.id;
-            return (
-              <button
-                key={ch.id}
-                onClick={() => onSelectChannel(ch.id)}
-                className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 cursor-pointer ${
-                  isActive
-                    ? "bg-rose-600 text-white shadow-sm shadow-rose-600/25 font-semibold"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/70 bg-transparent"
-                }`}
-              >
-                {ch.name}
-              </button>
-            );
-          })}
+        {/* Multi-Source Quick Navigation Bar */}
+        <div className="flex items-center space-x-2 overflow-x-auto py-2 no-scrollbar border-t border-border/30">
+          {/* Danh sách các báo Hub */}
+          <button
+            onClick={() => onSelectSource && onSelectSource("all")}
+            className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
+              activeSource === "all"
+                ? "bg-foreground text-background shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/70 bg-transparent"
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>Danh sách các báo</span>
+          </button>
+
+          {/* VnExpress Tab */}
+          <button
+            onClick={() => onSelectSource && onSelectSource("vnexpress")}
+            className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
+              activeSource === "vnexpress"
+                ? "bg-rose-600 text-white shadow-sm shadow-rose-600/25"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/70 bg-transparent"
+            }`}
+          >
+            <span>📰 VnExpress</span>
+          </button>
+
+          {/* Humans of NY Tab */}
+          <button
+            onClick={() => onSelectSource && onSelectSource("hony")}
+            className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
+              activeSource === "hony"
+                ? "bg-amber-600 text-white shadow-sm shadow-amber-600/25"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/70 bg-transparent"
+            }`}
+          >
+            <span>🗽 Humans of NY</span>
+          </button>
+
+          {/* If VnExpress is selected, show its channels */}
+          {activeSource === "vnexpress" && (
+            <>
+              <span className="text-border/80 px-1 select-none">|</span>
+              {RSS_CHANNELS.map((ch) => {
+                const isActive = activeChannel === ch.id;
+                return (
+                  <button
+                    key={ch.id}
+                    onClick={() => onSelectChannel(ch.id)}
+                    className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 cursor-pointer ${
+                      isActive
+                        ? "bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 font-bold"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/70 bg-transparent"
+                    }`}
+                  >
+                    {ch.name}
+                  </button>
+                );
+              })}
+            </>
+          )}
         </div>
       </div>
     </header>

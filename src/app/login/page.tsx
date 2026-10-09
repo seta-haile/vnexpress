@@ -194,16 +194,16 @@ export default function LoginPage() {
                 </div>
                 <div>
                   <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-                    VnE Reader English
+                    VnE Reader Multi-News
                   </h1>
                   <p className="text-xs sm:text-sm text-muted-foreground">
-                    Học tiếng Anh qua báo chí thực chiến VnExpress International
+                    Học tiếng Anh đa nguồn: VnExpress, Humans of New York...
                   </p>
                 </div>
               </div>
 
               <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-foreground leading-[1.15]">
-                Đọc báo thông minh.{" "}
+                Đọc báo đa nguồn.{" "}
                 <span className="bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 bg-clip-text text-transparent">
                   Nâng tầm vốn từ
                 </span>{" "}
@@ -211,7 +211,7 @@ export default function LoginPage() {
               </h2>
 
               <p className="text-base text-muted-foreground max-w-xl leading-relaxed">
-                Đăng nhập tài khoản để lưu giữ toàn bộ từ vựng, theo dõi cấp độ CEFR và tiếp tục việc học liền mạch trên mọi thiết bị.
+                Khám phá kho bài đọc phong phú từ VnExpress International, Humans of New York. Đăng nhập để lưu từ vựng và đồng bộ tiến độ học tập trên mọi thiết bị.
               </p>
             </div>
 

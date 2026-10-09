@@ -1,5 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
-import { RssChannel, NewsItem } from "@/types/news";
+import { RssChannel, NewsItem, PublicationSource } from "@/types/news";
 
 export const RSS_CHANNELS: RssChannel[] = [
   {
@@ -76,6 +76,54 @@ export const RSS_CHANNELS: RssChannel[] = [
   }
 ];
 
+export const HONY_CHANNELS: RssChannel[] = [
+  {
+    id: "hony-all",
+    name: "Stories",
+    vietnameseName: "Tất Cả Câu Chuyện",
+    url: "https://humansofnyarchive.com/rss",
+    badgeColor: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800",
+    description: "Những câu chuyện chân dung đời thực giàu xúc cảm từ người dân New York."
+  }
+];
+
+export const PUBLICATION_SOURCES: PublicationSource[] = [
+  {
+    id: "vnexpress",
+    name: "VnExpress International",
+    shortName: "VnExpress",
+    badge: "Thời sự & Học thuật",
+    tagline: "Báo tiếng Anh hàng đầu Việt Nam - Tin thời sự, kinh tế, công nghệ & đời sống",
+    description: "Cung cấp tin tức thời sự chính luận, kinh tế, xã hội với văn phong báo chí chuẩn mực quốc tế. Lý tưởng để rèn luyện kỹ năng đọc hiểu chuyên sâu và chuẩn bị cho các kỳ thi IELTS, TOEFL.",
+    logoText: "VnE",
+    badgeColor: "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/60",
+    gradient: "from-red-600 via-rose-500 to-amber-500",
+    rssUrl: "https://e.vnexpress.net/rss/home.rss",
+    websiteUrl: "https://e.vnexpress.net",
+    channels: RSS_CHANNELS,
+    cefrRange: "B1 - C1",
+    readingStyle: "Tin tức chính luận, kinh tế, xã hội chuẩn báo chí",
+    coverImage: "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1200&auto=format&fit=crop&q=80"
+  },
+  {
+    id: "hony",
+    name: "Humans of New York",
+    shortName: "HONY Archive",
+    badge: "Chuyện đời thực & Chân dung",
+    tagline: "Kho lưu trữ câu chuyện người thật việc thật từ đường phố New York",
+    description: "Dự án nhiếp ảnh và phỏng vấn nổi tiếng thế giới của Brandon Stanton. Mỗi bài viết là một lát cắt cuộc đời đầy cảm xúc, ngôn từ tự nhiên, giàu thành ngữ và cảm xúc chân thật của người bản xứ.",
+    logoText: "HONY",
+    badgeColor: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900/60",
+    gradient: "from-amber-600 via-orange-600 to-stone-800",
+    rssUrl: "https://humansofnyarchive.com/rss",
+    websiteUrl: "https://humansofnyarchive.com",
+    channels: HONY_CHANNELS,
+    cefrRange: "A2 - B2",
+    readingStyle: "Kể chuyện tâm sự, hội thoại đời thường chân thật",
+    coverImage: "https://images.unsplash.com/photo-1534430480872-3498386e7856?w=1200&auto=format&fit=crop&q=80"
+  }
+];
+
 export function extractImageAndText(rawDescription: string): { thumbnail: string; text: string } {
   if (!rawDescription) return { thumbnail: "", text: "" };
 
@@ -140,7 +188,82 @@ export function estimateCEFR(text: string): {
   return { cefrLevel, difficultyScore, wordCount, readingTimeMinutes };
 }
 
-export async function fetchRssFeed(channelId: string = "home"): Promise<NewsItem[]> {
+export async function fetchHonyFeed(): Promise<NewsItem[]> {
+  try {
+    const res = await fetch("https://humansofnyarchive.com/rss", {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "Accept": "application/rss+xml, application/xml, text/xml, */*"
+      },
+      next: { revalidate: 300 }
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch HONY RSS: ${res.statusText}`);
+    }
+
+    const xmlData = await res.text();
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      cdataPropName: "__cdata"
+    });
+
+    const parsed = parser.parse(xmlData);
+    const items = parsed?.rss?.channel?.item;
+
+    if (!items || (!Array.isArray(items) && typeof items !== "object")) {
+      return [];
+    }
+
+    const rawList = Array.isArray(items) ? items : [items];
+
+    return rawList.map((item: any, idx: number) => {
+      const rawTitle = item.title?.__cdata || item.title || "";
+      const link = item.link?.__cdata || item.link || "";
+      const guid = item.guid?.__cdata || item.guid || link || `hony-${idx}`;
+      const pubDate = item.pubDate || new Date().toISOString();
+      const rawDesc = item.description?.__cdata || item.description || "";
+      const { thumbnail, text } = extractImageAndText(rawDesc);
+
+      // Clean title or create thoughtful title from first sentence
+      let cleanTitle = rawTitle.replace(/^“/, '"').replace(/”$/, '"').trim();
+      if (!cleanTitle || cleanTitle.length < 5) {
+        const firstSentence = text.split(/[.!?]+/)[0] || "Story from New York";
+        cleanTitle = firstSentence.slice(0, 80) + (firstSentence.length > 80 ? "..." : "");
+      }
+
+      const metrics = estimateCEFR(cleanTitle + " " + text);
+
+      return {
+        id: guid || `hony-${idx}`,
+        title: cleanTitle,
+        link,
+        guid,
+        pubDate,
+        description: text,
+        rawDescription: rawDesc,
+        thumbnail: thumbnail || "https://images.unsplash.com/photo-1534430480872-3498386e7856?w=800&auto=format&fit=crop&q=80",
+        category: "Humans of NY",
+        channelId: "hony-all",
+        sourceId: "hony",
+        sourceName: "Humans of New York",
+        readingTimeMinutes: metrics.readingTimeMinutes,
+        wordCount: metrics.wordCount,
+        cefrLevel: metrics.cefrLevel,
+        difficultyScore: metrics.difficultyScore
+      };
+    });
+  } catch (error) {
+    console.error("Error fetching HONY RSS feed:", error);
+    return [];
+  }
+}
+
+export async function fetchRssFeed(channelId: string = "home", sourceId?: string): Promise<NewsItem[]> {
+  if (sourceId === "hony" || channelId === "hony" || channelId === "hony-all") {
+    return fetchHonyFeed();
+  }
+
   const channel = RSS_CHANNELS.find(c => c.id === channelId) || RSS_CHANNELS[0];
 
   try {
@@ -202,6 +325,8 @@ export async function fetchRssFeed(channelId: string = "home"): Promise<NewsItem
         thumbnail: thumbnail || "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=800&auto=format&fit=crop&q=80",
         category,
         channelId: channel.id,
+        sourceId: "vnexpress",
+        sourceName: "VnExpress International",
         readingTimeMinutes: metrics.readingTimeMinutes,
         wordCount: metrics.wordCount,
         cefrLevel: metrics.cefrLevel,
@@ -214,9 +339,33 @@ export async function fetchRssFeed(channelId: string = "home"): Promise<NewsItem
   }
 }
 
+export async function fetchAllSourcesLatest(): Promise<{
+  vnexpress: NewsItem[];
+  hony: NewsItem[];
+  combined: NewsItem[];
+}> {
+  const [vnexpress, hony] = await Promise.all([
+    fetchRssFeed("home"),
+    fetchHonyFeed()
+  ]);
+
+  const combined = [...vnexpress, ...hony].sort((a, b) => {
+    const timeA = new Date(a.pubDate).getTime();
+    const timeB = new Date(b.pubDate).getTime();
+    return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
+  });
+
+  return { vnexpress, hony, combined };
+}
+
 export function getArticleSlug(articleUrl: string): string {
   try {
     const u = new URL(articleUrl);
+    if (u.hostname.includes("humansofnyarchive")) {
+      const match = u.pathname.match(/\/post\/(\d+)/);
+      if (match) return `hony/post/${match[1]}`;
+      return `hony/${u.pathname.replace(/^\//, "")}`;
+    }
     return u.pathname.replace(/^\//, "").replace(/\.html$/, "");
   } catch {
     return encodeURIComponent(articleUrl);
@@ -225,9 +374,17 @@ export function getArticleSlug(articleUrl: string): string {
 
 export function reconstructArticleUrl(slug: string[] | string): string {
   if (Array.isArray(slug)) {
+    if (slug[0] === "hony") {
+      const rest = slug.slice(1).join("/");
+      return `https://humansofnyarchive.com/${rest}`;
+    }
     const path = slug.join("/").replace(/\.html$/, "") + ".html";
     return `https://e.vnexpress.net/${path}`;
+  }
+  if (slug.startsWith("hony/")) {
+    return `https://humansofnyarchive.com/${slug.replace(/^hony\//, "")}`;
   }
   const clean = slug.replace(/\.html$/, "") + ".html";
   return `https://e.vnexpress.net/${clean}`;
 }
+

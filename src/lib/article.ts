@@ -2,8 +2,124 @@ import * as cheerio from "cheerio";
 import { ArticleDetail, ArticleParagraph, KeyVocab } from "@/types/news";
 import { estimateCEFR } from "@/lib/rss";
 import { CURATED_VOCAB, cleanWord } from "@/lib/dictionary";
+import { XMLParser } from "fast-xml-parser";
+
+async function fetchHonyArticleDetail(url: string): Promise<ArticleDetail | null> {
+  try {
+    const res = await fetch("https://humansofnyarchive.com/rss", {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "Accept": "application/rss+xml, application/xml, text/xml, */*"
+      },
+      next: { revalidate: 300 }
+    });
+    if (!res.ok) return null;
+
+    const xml = await res.text();
+    const parser = new XMLParser({ ignoreAttributes: false, cdataPropName: "__cdata" });
+    const parsed = parser.parse(xml);
+    const items = parsed?.rss?.channel?.item || [];
+    const list = Array.isArray(items) ? items : [items];
+
+    const matched = list.find((it: any) => {
+      const link = it.link?.__cdata || it.link || "";
+      const guid = it.guid?.__cdata || it.guid || "";
+      if (link === url || guid === url) return true;
+      const idMatch = url.match(/\/post\/(\d+)/);
+      if (idMatch && (link.includes(idMatch[1]) || guid.includes(idMatch[1]))) return true;
+      return false;
+    }) || list[0];
+
+    if (!matched) return null;
+
+    const rawDesc = matched.description?.__cdata || matched.description || "";
+    const imgMatch = rawDesc.match(/<img[^>]+src=["']([^"']+)["']/i);
+    const thumbnail = imgMatch ? imgMatch[1] : "https://images.unsplash.com/photo-1534430480872-3498386e7856?w=1200&auto=format&fit=crop&q=80";
+
+    const bodyHtml = rawDesc.replace(/<img[^>]*>/gi, "");
+    const pMatches = bodyHtml.match(/<p[^>]*>([\s\S]*?)<\/p>/gi);
+    let rawParagraphs: string[] = [];
+    if (pMatches && pMatches.length > 0) {
+      rawParagraphs = pMatches.map((p: string) => 
+        p.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim()
+      ).filter((t: string) => t.length > 0);
+    } else {
+      rawParagraphs = bodyHtml.split(/<br\s*\/?>/i)
+        .map((t: string) => t.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim())
+        .filter((t: string) => t.length > 0);
+    }
+
+    const paragraphs: ArticleParagraph[] = [];
+    rawParagraphs.forEach((rawP: string) => {
+      if (rawP.length > 350) {
+        const sentences = rawP.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g) || [rawP];
+        let currentChunk = "";
+        sentences.forEach((s: string) => {
+          if ((currentChunk + " " + s).trim().length > 300) {
+            if (currentChunk) paragraphs.push({ id: `p-${paragraphs.length}`, text: currentChunk.trim() });
+            currentChunk = s;
+          } else {
+            currentChunk = (currentChunk + " " + s).trim();
+          }
+        });
+        if (currentChunk) paragraphs.push({ id: `p-${paragraphs.length}`, text: currentChunk.trim() });
+      } else {
+        paragraphs.push({ id: `p-${paragraphs.length}`, text: rawP });
+      }
+    });
+
+    const fullText = paragraphs.map(p => p.text).join(" ");
+    const { wordCount, cefrLevel } = estimateCEFR(fullText);
+
+    const extractedWords = new Set<string>();
+    const keyVocabulary: KeyVocab[] = [];
+    const tokens = fullText.split(/[\s,.;:!?()"“”']+/).map(cleanWord);
+
+    for (const token of tokens) {
+      if (token && CURATED_VOCAB[token] && !extractedWords.has(token)) {
+        extractedWords.add(token);
+        const item = CURATED_VOCAB[token];
+        keyVocabulary.push({
+          word: token,
+          ipa: item.ipa,
+          partOfSpeech: item.pos,
+          vietnamese: item.vi,
+          englishDefinition: item.en,
+          exampleSentence: item.example,
+          cefr: item.cefr
+        });
+      }
+    }
+
+    const rawTitle = matched.title?.__cdata || matched.title || "Humans of New York Story";
+    const lead = paragraphs[0]?.text || "A story from Humans of New York.";
+
+    return {
+      id: matched.guid || `hony-story-${Date.now()}`,
+      title: rawTitle.replace(/^“/, '"').replace(/”$/, '"'),
+      link: matched.link || url,
+      pubDate: matched.pubDate || new Date().toISOString(),
+      category: "Humans of NY",
+      lead,
+      thumbnail,
+      caption: "Photo by Brandon Stanton • Humans of New York",
+      author: "Brandon Stanton",
+      paragraphs: paragraphs.slice(1).length > 0 ? paragraphs.slice(1) : paragraphs,
+      wordCount,
+      cefrLevel,
+      keyVocabulary
+    };
+  } catch (e) {
+    console.error("fetchHonyArticleDetail error:", e);
+    return null;
+  }
+}
 
 export async function fetchArticleDetail(url: string): Promise<ArticleDetail | null> {
+  if (url.includes("humansofnyarchive.com") || url.includes("/hony/")) {
+    return fetchHonyArticleDetail(url);
+  }
+
   try {
     const res = await fetch(url, {
       headers: {

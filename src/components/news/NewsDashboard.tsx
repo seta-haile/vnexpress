@@ -27,18 +27,29 @@ import {
   Loader2, 
   Compass, 
   TrendingUp, 
-  GraduationCap 
+  GraduationCap,
+  ArrowLeft,
+  Newspaper
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PublicationsDirectory } from "./PublicationsDirectory";
 
 interface NewsDashboardProps {
   initialArticles: NewsItem[];
   initialChannel: string;
+  initialSource?: "all" | "vnexpress" | "hony";
+  allLatestArticles?: NewsItem[];
 }
 
-export function NewsDashboard({ initialArticles, initialChannel }: NewsDashboardProps) {
+export function NewsDashboard({ 
+  initialArticles, 
+  initialChannel,
+  initialSource = "all",
+  allLatestArticles = []
+}: NewsDashboardProps) {
   // Navigation & Channels
+  const [activeSource, setActiveSource] = useState<"all" | "vnexpress" | "hony">(initialSource);
   const [activeChannel, setActiveChannel] = useState(initialChannel);
   const [articles, setArticles] = useState<NewsItem[]>(initialArticles);
   const [isLoadingArticles, setIsLoadingArticles] = useState(false);
@@ -94,12 +105,36 @@ export function NewsDashboard({ initialArticles, initialChannel }: NewsDashboard
     setUserStats(getUserStats());
   };
 
-  // Change RSS channel
-  const handleSelectChannel = async (channelId: string) => {
+  // Switch between Newspaper sources: "all" (directory), "vnexpress", "hony"
+  const handleSelectSource = async (source: "all" | "vnexpress" | "hony") => {
+    setActiveSource(source);
+    if (source === "all") {
+      return;
+    }
+
+    const channelId = source === "hony" ? "hony-all" : "home";
     setActiveChannel(channelId);
     setIsLoadingArticles(true);
     try {
-      const res = await fetch(`/api/rss?channel=${channelId}`);
+      const res = await fetch(`/api/rss?source=${source}&channel=${channelId}`);
+      const data = await res.json();
+      if (data.success && data.items) {
+        setArticles(data.items);
+      }
+    } catch (e) {
+      console.error("Failed to load channel RSS:", e);
+    } finally {
+      setIsLoadingArticles(false);
+    }
+  };
+
+  // Change RSS channel within selected newspaper
+  const handleSelectChannel = async (channelId: string) => {
+    setActiveChannel(channelId);
+    setIsLoadingArticles(true);
+    const sourceParam = activeSource === "hony" ? "hony" : "vnexpress";
+    try {
+      const res = await fetch(`/api/rss?source=${sourceParam}&channel=${channelId}`);
       const data = await res.json();
       if (data.success && data.items) {
         setArticles(data.items);
@@ -126,6 +161,8 @@ export function NewsDashboard({ initialArticles, initialChannel }: NewsDashboard
       <Header
         activeChannel={activeChannel}
         onSelectChannel={handleSelectChannel}
+        activeSource={activeSource}
+        onSelectSource={handleSelectSource}
         savedWordsCount={savedWords.length}
         onOpenVocabulary={() => setIsVocabOpen(true)}
         onOpenFlashcards={() => setIsFlashcardsOpen(true)}
@@ -138,26 +175,109 @@ export function NewsDashboard({ initialArticles, initialChannel }: NewsDashboard
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
+        {activeSource === "all" ? (
+          /* Newspaper List / Publications Directory Screen */
+          <PublicationsDirectory
+            onSelectSource={handleSelectSource}
+            latestArticles={allLatestArticles.length > 0 ? allLatestArticles : articles}
+            isArticleRead={(id) => userStats.readArticleIds.includes(id)}
+          />
+        ) : (
+          /* Individual Newspaper Feed View */
+          <>
+            {/* Top Source Breadcrumb & Switcher Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-card border border-border/80 shadow-sm">
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveSource("all")}
+                  className="rounded-xl font-bold text-xs flex items-center gap-1.5 border-border hover:bg-muted"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Danh sách các báo</span>
+                </Button>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-black text-foreground flex items-center gap-1.5">
+                    {activeSource === "vnexpress" ? (
+                      <>
+                        <span className="text-rose-600">📰</span> VnExpress International
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-amber-500">🗽</span> Humans of New York
+                      </>
+                    )}
+                  </span>
+                  <Badge variant="secondary" className="text-[11px] font-semibold hidden sm:inline-flex">
+                    {activeSource === "vnexpress" ? "Thời sự & Học thuật" : "Chuyện đời thực & Chân dung"}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {activeSource === "vnexpress" ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleSelectSource("hony")}
+                    className="text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 font-medium"
+                  >
+                    Chuyển sang Humans of NY ➔
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleSelectSource("vnexpress")}
+                    className="text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 font-medium"
+                  >
+                    Chuyển sang VnExpress ➔
+                  </Button>
+                )}
+              </div>
+            </div>
         {/* Hero Interactive Learning Banner */}
-        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-rose-950 via-slate-900 to-zinc-950 text-white p-6 sm:p-10 shadow-2xl border border-white/10">
+        <section className={`relative overflow-hidden rounded-3xl p-6 sm:p-10 shadow-2xl border text-white ${
+          activeSource === "hony"
+            ? "bg-gradient-to-br from-amber-950 via-stone-900 to-zinc-950 border-amber-500/20"
+            : "bg-gradient-to-br from-rose-950 via-slate-900 to-zinc-950 border-white/10"
+        }`}>
           <div className="absolute top-0 right-0 -mt-10 -mr-10 w-96 h-96 bg-rose-600/20 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute bottom-0 left-1/3 -mb-10 w-80 h-80 bg-amber-600/15 rounded-full blur-3xl pointer-events-none" />
 
           <div className="relative z-10 max-w-2xl space-y-4">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-rose-300 text-xs font-semibold border border-white/10">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Phương Pháp Học Tiếng Anh Qua Báo Chí Tương Tác</span>
+              <span>
+                {activeSource === "hony" 
+                  ? "Kể Chuyện Đời Thực • Ngôn Ngữ Tự Nhiên Bản Xứ" 
+                  : "Phương Pháp Học Tiếng Anh Qua Báo Chí Tương Tác"}
+              </span>
             </div>
 
             <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight leading-tight">
-              Đọc báo quốc tế VnExpress, <br />
-              <span className="bg-gradient-to-r from-rose-400 via-amber-300 to-rose-300 bg-clip-text text-transparent">
-                làm chủ từ vựng IELTS & giao tiếp
-              </span>
+              {activeSource === "hony" ? (
+                <>
+                  Humans of New York, <br />
+                  <span className="bg-gradient-to-r from-amber-400 via-orange-300 to-amber-200 bg-clip-text text-transparent">
+                    học tiếng Anh qua chuyện đời thực
+                  </span>
+                </>
+              ) : (
+                <>
+                  Đọc báo quốc tế VnExpress, <br />
+                  <span className="bg-gradient-to-r from-rose-400 via-amber-300 to-rose-300 bg-clip-text text-transparent">
+                    làm chủ từ vựng IELTS & giao tiếp
+                  </span>
+                </>
+              )}
             </h1>
 
             <p className="text-zinc-300 text-xs sm:text-sm leading-relaxed max-w-xl">
-              Chạm vào bất kỳ từ nào để tra từ điển & nghe phát âm ngay tức thì. Lưu vào sổ từ vựng và củng cố trí nhớ với 3D Flashcards & Mini-Quiz mỗi ngày.
+              {activeSource === "hony"
+                ? "Luyện đọc những lát cắt cuộc đời sâu sắc từ New York. Chạm vào bất kỳ từ nào để tra nghĩa, nghe phát âm với AI và đồng bộ tiến độ học tập."
+                : "Chạm vào bất kỳ từ nào để tra từ điển & nghe phát âm ngay tức thì. Lưu vào sổ từ vựng và củng cố trí nhớ với 3D Flashcards & Mini-Quiz mỗi ngày."}
             </p>
 
             {/* Quick Stats Grid */}
@@ -222,12 +342,15 @@ export function NewsDashboard({ initialArticles, initialChannel }: NewsDashboard
           </div>
         </section>
 
-
         {/* Articles Grid */}
         {isLoadingArticles ? (
           <div className="py-24 flex flex-col items-center justify-center gap-3 text-muted-foreground">
             <Loader2 className="w-8 h-8 animate-spin text-rose-600" />
-            <p className="text-sm">Đang nạp luồng tin RSS từ VnExpress International...</p>
+            <p className="text-sm">
+              {activeSource === "hony" 
+                ? "Đang nạp câu chuyện từ Humans of New York..." 
+                : "Đang nạp luồng tin RSS từ VnExpress International..."}
+            </p>
           </div>
         ) : filteredArticles.length === 0 ? (
           <div className="text-center py-20 space-y-3 text-muted-foreground">
@@ -247,25 +370,36 @@ export function NewsDashboard({ initialArticles, initialChannel }: NewsDashboard
             ))}
           </div>
         )}
+        </>
+      )}
       </main>
 
       {/* Footer */}
       <footer className="border-t border-border/50 py-8 text-center text-xs text-muted-foreground bg-muted/20">
         <div className="max-w-7xl mx-auto px-4 space-y-2">
           <p className="font-semibold text-foreground">
-            VnE Reader - English Learning Portal
+            VnE Reader - Nền tảng luyện đọc tiếng Anh đa nguồn
           </p>
           <p>
-            Dữ liệu tin tức cập nhật tự động từ RSS nguồn{" "}
+            Dữ liệu được cập nhật tự động từ RSS của{" "}
             <a
               href="https://e.vnexpress.net"
               target="_blank"
               rel="noreferrer"
-              className="text-rose-600 hover:underline"
+              className="text-rose-600 hover:underline font-medium"
             >
               VnExpress International
+            </a>{" "}
+            và{" "}
+            <a
+              href="https://humansofnyarchive.com"
+              target="_blank"
+              rel="noreferrer"
+              className="text-amber-600 hover:underline font-medium"
+            >
+              Humans of New York
             </a>
-            . Phục vụ mục đích học tập và rèn luyện kỹ năng đọc tiếng Anh.
+            . Phục vụ mục đích học tập và trau dồi tiếng Anh.
           </p>
         </div>
       </footer>
