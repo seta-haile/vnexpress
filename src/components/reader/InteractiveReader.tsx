@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { ArticleDetail, KeyVocab, SavedWord, WordDefinition } from "@/types/news";
 import { WordInspector } from "./WordInspector";
 import { 
@@ -61,7 +61,38 @@ export function InteractiveReader({
   // Audio / Text to speech state
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [activeSpeechParagraph, setActiveSpeechParagraph] = useState<number | null>(null);
+  const [speakingCharIndex, setSpeakingCharIndex] = useState<number | null>(null);
   const [speechSpeed, setSpeechSpeed] = useState<number>(settings.speechRate || 1.0);
+
+  const currentSectionIndexRef = useRef<number | null>(null);
+  const isFullArticleModeRef = useRef<boolean>(false);
+  const isCancelledRef = useRef<boolean>(false);
+
+  // Sections queue for sequential reading (Title -> Lead -> Paragraphs)
+  const speechSections = useMemo<{ index: number; text: string }[]>(() => {
+    const sections: { index: number; text: string }[] = [];
+    if (article.title && article.title.trim().length > 0) {
+      sections.push({ index: -2, text: article.title.trim() });
+    }
+    if (article.lead && article.lead.trim().length > 0) {
+      sections.push({ index: -1, text: article.lead.trim() });
+    }
+    article.paragraphs.forEach((p, idx) => {
+      if (p.text && p.text.trim().length > 0) {
+        sections.push({ index: idx, text: p.text.trim() });
+      }
+    });
+    return sections;
+  }, [article.title, article.lead, article.paragraphs]);
+
+  // Clean up audio when component unmounts
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   // Reading progress
   const [scrollProgress, setScrollProgress] = useState(0);
@@ -178,49 +209,168 @@ export function InteractiveReader({
     }
   };
 
-  // Text to speech for article or paragraph
-  const handlePlayTTS = (textToRead: string, paragraphIndex: number | null = null) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      alert("Trình duyệt của bạn không hỗ trợ Text-to-Speech.");
-      return;
-    }
-
-    if (isPlayingAudio) {
-      window.speechSynthesis.cancel();
-      setIsPlayingAudio(false);
-      setActiveSpeechParagraph(null);
+  // Text-to-Speech handler with karaoke-style boundary synchronization
+  const playSectionByIndex = (secIdx: number) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    if (secIdx < 0 || secIdx >= speechSections.length) {
+      handleStopTTS();
       return;
     }
 
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(textToRead);
+    isCancelledRef.current = false;
+    currentSectionIndexRef.current = secIdx;
+
+    const section = speechSections[secIdx];
+    setActiveSpeechParagraph(section.index);
+    setIsPlayingAudio(true);
+    setSpeakingCharIndex(null);
+
+    // Gently scroll active section into view
+    const elId =
+      section.index === -2
+        ? "article-title-section"
+        : section.index === -1
+        ? "article-lead-section"
+        : `article-p-${section.index}`;
+    const el = document.getElementById(elId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    const utterance = new SpeechSynthesisUtterance(section.text);
     utterance.lang = "en-US";
     utterance.rate = speechSpeed;
 
-    utterance.onstart = () => {
-      setIsPlayingAudio(true);
-      setActiveSpeechParagraph(paragraphIndex);
+    // Real-time word boundary event for karaoke highlight
+    utterance.onboundary = (event) => {
+      if (!isCancelledRef.current) {
+        if (event.name === "word" || !event.name || typeof event.charIndex === "number") {
+          setSpeakingCharIndex(event.charIndex);
+        }
+      }
     };
 
     utterance.onend = () => {
+      if (isCancelledRef.current) return;
+
+      if (isFullArticleModeRef.current) {
+        const nextIdx = secIdx + 1;
+        if (nextIdx < speechSections.length) {
+          // Pause briefly between sections for natural cadence
+          setTimeout(() => {
+            if (!isCancelledRef.current && isFullArticleModeRef.current) {
+              playSectionByIndex(nextIdx);
+            }
+          }, 300);
+          return;
+        }
+      }
+
+      // Playback finished
       setIsPlayingAudio(false);
       setActiveSpeechParagraph(null);
+      setSpeakingCharIndex(null);
+      currentSectionIndexRef.current = null;
+      isFullArticleModeRef.current = false;
     };
 
-    utterance.onerror = () => {
+    utterance.onerror = (event) => {
+      if (event.error === "canceled" || event.error === "interrupted" || isCancelledRef.current) {
+        return;
+      }
+      console.warn("TTS Utterance error:", event);
       setIsPlayingAudio(false);
       setActiveSpeechParagraph(null);
+      setSpeakingCharIndex(null);
+      currentSectionIndexRef.current = null;
+      isFullArticleModeRef.current = false;
     };
 
     window.speechSynthesis.speak(utterance);
   };
 
+  const handleStartFullTTS = () => {
+    if (isPlayingAudio) {
+      handleStopTTS();
+      return;
+    }
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      alert("Trình duyệt của bạn không hỗ trợ Text-to-Speech.");
+      return;
+    }
+    if (speechSections.length === 0) return;
+
+    isCancelledRef.current = false;
+    isFullArticleModeRef.current = true;
+    playSectionByIndex(0);
+  };
+
+  const handlePlayParagraphTTS = (paragraphIndex: number, text: string) => {
+    if (isPlayingAudio && activeSpeechParagraph === paragraphIndex) {
+      handleStopTTS();
+      return;
+    }
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      alert("Trình duyệt của bạn không hỗ trợ Text-to-Speech.");
+      return;
+    }
+
+    isCancelledRef.current = false;
+    isFullArticleModeRef.current = false;
+
+    const secIdx = speechSections.findIndex((s) => s.index === paragraphIndex);
+    if (secIdx !== -1) {
+      playSectionByIndex(secIdx);
+    } else {
+      // Fallback for single custom text
+      window.speechSynthesis.cancel();
+      setActiveSpeechParagraph(paragraphIndex);
+      setIsPlayingAudio(true);
+      setSpeakingCharIndex(null);
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "en-US";
+      utterance.rate = speechSpeed;
+      utterance.onboundary = (e) => {
+        if (!isCancelledRef.current && (e.name === "word" || !e.name || typeof e.charIndex === "number")) {
+          setSpeakingCharIndex(e.charIndex);
+        }
+      };
+      utterance.onend = () => {
+        setIsPlayingAudio(false);
+        setActiveSpeechParagraph(null);
+        setSpeakingCharIndex(null);
+      };
+      utterance.onerror = () => {
+        setIsPlayingAudio(false);
+        setActiveSpeechParagraph(null);
+        setSpeakingCharIndex(null);
+      };
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
   const handleStopTTS = () => {
+    isCancelledRef.current = true;
+    isFullArticleModeRef.current = false;
+    currentSectionIndexRef.current = null;
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
     setIsPlayingAudio(false);
     setActiveSpeechParagraph(null);
+    setSpeakingCharIndex(null);
+  };
+
+  const handleSpeedToggle = () => {
+    const nextSpeed = speechSpeed === 1.0 ? 1.25 : speechSpeed === 1.25 ? 0.8 : 1.0;
+    setSpeechSpeed(nextSpeed);
+    updateSetting("speechRate", nextSpeed);
+    if (isPlayingAudio && currentSectionIndexRef.current !== null) {
+      const curIdx = currentSectionIndexRef.current;
+      playSectionByIndex(curIdx);
+    }
   };
 
   const handleSaveWordToStorage = (wordData: Omit<SavedWord, "id" | "savedAt" | "mastery">) => {
@@ -292,16 +442,9 @@ export function InteractiveReader({
             <Button
               size="sm"
               variant={isPlayingAudio ? "default" : "ghost"}
-              onClick={() => {
-                if (isPlayingAudio) {
-                  handleStopTTS();
-                } else {
-                  const fullText = [article.lead, ...article.paragraphs.map(p => p.text)].join(". ");
-                  handlePlayTTS(fullText);
-                }
-              }}
+              onClick={handleStartFullTTS}
               className={`h-7 px-2.5 rounded-full text-xs font-medium flex items-center gap-1.5 ${
-                isPlayingAudio ? "bg-rose-600 text-white hover:bg-rose-700 animate-pulse" : ""
+                isPlayingAudio ? "bg-rose-600 text-white hover:bg-rose-700 shadow-sm" : ""
               }`}
             >
               {isPlayingAudio ? (
@@ -312,18 +455,14 @@ export function InteractiveReader({
               ) : (
                 <>
                   <Play className="w-3.5 h-3.5 fill-current text-rose-600" />
-                  <span>Nghe bài đọc (TTS)</span>
+                  <span>Nghe toàn bài (Karaoke)</span>
                 </>
               )}
             </Button>
 
             {/* Speed toggle */}
             <button
-              onClick={() => {
-                const nextSpeed = speechSpeed === 1.0 ? 1.25 : speechSpeed === 1.25 ? 0.8 : 1.0;
-                setSpeechSpeed(nextSpeed);
-                updateSetting("speechRate", nextSpeed);
-              }}
+              onClick={handleSpeedToggle}
               className="text-[11px] font-bold px-2 py-0.5 rounded-full hover:bg-background/80 text-muted-foreground transition-colors"
               title="Tốc độ đọc"
             >
@@ -430,14 +569,32 @@ export function InteractiveReader({
             <span className="text-xs text-muted-foreground">{article.pubDate}</span>
           </div>
 
-          <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight leading-tight text-foreground">
-            {article.title}
+          <h1 id="article-title-section" className="text-2xl sm:text-4xl font-extrabold tracking-tight leading-tight text-foreground">
+            {renderClickableSentence(article.title, article.title, -2)}
           </h1>
 
           {/* Lead Paragraph */}
           {article.lead && (
-            <div className="p-4 rounded-2xl bg-muted/40 border border-border/50 text-base sm:text-lg font-medium leading-relaxed italic text-foreground/90">
-              {renderClickableSentence(article.lead, article.lead)}
+            <div
+              id="article-lead-section"
+              className={`group relative p-4 rounded-2xl border border-border/50 transition-all ${
+                isPlayingAudio && activeSpeechParagraph === -1
+                  ? "bg-rose-500/10 ring-2 ring-rose-500/30 shadow-sm"
+                  : "bg-muted/40"
+              }`}
+            >
+              <div className="text-base sm:text-lg font-medium leading-relaxed italic text-foreground/90">
+                {renderClickableSentence(article.lead, article.lead, -1)}
+              </div>
+              <div className="mt-2.5 flex items-center gap-2 text-xs text-muted-foreground opacity-70 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => handlePlayParagraphTTS(-1, article.lead)}
+                  className="flex items-center gap-1 hover:text-rose-600 px-2 py-1 rounded-md hover:bg-muted/60 transition-colors"
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                  <span>{isPlayingAudio && activeSpeechParagraph === -1 ? "Dừng nghe" : "Nghe tóm tắt này"}</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -533,27 +690,28 @@ export function InteractiveReader({
         {/* Article Body Paragraphs */}
         <article className={`space-y-6 ${fontClasses} ${fontSizeClasses}`}>
           {article.paragraphs.map((p, pIdx) => {
-            const isPlayingThis = activeSpeechParagraph === pIdx;
+            const isPlayingThis = isPlayingAudio && activeSpeechParagraph === pIdx;
             const isTranslated = showTranslations[p.id];
             const translatedText = translatedParagraphs[p.id];
             const isLoadingTrans = loadingTranslations[p.id];
 
             return (
               <div 
+                id={`article-p-${pIdx}`}
                 key={p.id}
                 className={`group relative p-3 sm:p-4 rounded-2xl transition-all ${
-                  isPlayingThis ? "bg-rose-500/10 ring-2 ring-rose-500/30" : "hover:bg-muted/30"
+                  isPlayingThis ? "bg-rose-500/10 ring-2 ring-rose-500/30 shadow-sm" : "hover:bg-muted/30"
                 }`}
               >
                 {/* Paragraph Text with clickable words */}
                 <p className="leading-relaxed text-foreground">
-                  {renderClickableSentence(p.text, p.text)}
+                  {renderClickableSentence(p.text, p.text, pIdx)}
                 </p>
 
                 {/* Paragraph Toolbar on hover */}
                 <div className="mt-2.5 flex items-center gap-2 text-xs text-muted-foreground opacity-70 group-hover:opacity-100 transition-opacity">
                   <button
-                    onClick={() => handlePlayTTS(p.text, pIdx)}
+                    onClick={() => handlePlayParagraphTTS(pIdx, p.text)}
                     className="flex items-center gap-1 hover:text-rose-600 px-2 py-1 rounded-md hover:bg-muted/60 transition-colors"
                   >
                     <Volume2 className="w-3.5 h-3.5" />
@@ -642,24 +800,45 @@ export function InteractiveReader({
     </div>
   );
 
-  // Helper to split text into words while keeping punctuation and CEFR highlight
-  function renderClickableSentence(sentenceText: string, fullContext: string) {
-    const tokens = sentenceText.split(/(\s+)/);
+  // Helper to split text into words while keeping punctuation, CEFR highlight & real-time TTS karaoke bolding
+  function renderClickableSentence(sentenceText: string, fullContext: string, paragraphIdx: number) {
+    const regex = /\S+|\s+/g;
+    const tokens: { text: string; start: number; end: number; isSpace: boolean }[] = [];
+    let match;
+    while ((match = regex.exec(sentenceText)) !== null) {
+      tokens.push({
+        text: match[0],
+        start: match.index,
+        end: match.index + match[0].length,
+        isSpace: /^\s+$/.test(match[0])
+      });
+    }
 
-    return tokens.map((token, idx) => {
-      // If whitespace, return plain
-      if (/^\s+$/.test(token)) {
-        return <span key={idx}>{token}</span>;
+    const isThisSectionSpeaking = isPlayingAudio && activeSpeechParagraph === paragraphIdx;
+
+    return tokens.map((tokenObj, idx) => {
+      if (tokenObj.isSpace) {
+        return <span key={idx}>{tokenObj.text}</span>;
       }
 
+      const { text: token, start, end } = tokenObj;
       const clean = cleanWord(token);
-      if (!clean) return <span key={idx}>{token}</span>;
+      const curated = clean ? CURATED_VOCAB[clean] : undefined;
+      const cefr = clean ? (curated?.cefr || detectCEFRLevel(clean)) : null;
 
-      const curated = CURATED_VOCAB[clean];
-      const cefr = curated?.cefr || detectCEFRLevel(clean);
+      // Real-time Karaoke word-by-word tracking via Web Speech API charIndex
+      const isCurrentlySpoken =
+        isThisSectionSpeaking &&
+        speakingCharIndex !== null &&
+        speakingCharIndex >= start &&
+        speakingCharIndex < end;
 
       let highlightClass = "";
-      if (settings.highlightCefr) {
+      if (isCurrentlySpoken) {
+        // High visibility glowing karaoke highlight (stands out in both light & dark mode)
+        highlightClass =
+          "bg-amber-400 text-zinc-950 dark:bg-amber-400 dark:text-zinc-950 font-black px-1.5 py-0.5 rounded shadow scale-105 inline-block ring-2 ring-amber-500/70 z-10 transition-transform duration-75";
+      } else if (settings.highlightCefr && cefr) {
         if (cefr === "C1" || cefr === "C2") {
           highlightClass = "border-b-2 border-purple-500/70 bg-purple-500/15 text-purple-700 dark:text-purple-300 font-medium";
         } else if (cefr === "B2") {
@@ -674,10 +853,12 @@ export function InteractiveReader({
           key={idx}
           onClick={(e) => {
             e.stopPropagation();
-            handleWordClick(token, fullContext);
+            if (clean) {
+              handleWordClick(token, fullContext);
+            }
           }}
-          className={`cursor-pointer rounded px-0.5 transition-colors duration-150 hover:bg-rose-500/20 hover:text-rose-600 dark:hover:text-rose-400 ${highlightClass}`}
-          title={`Bấm để tra từ: ${clean} (${cefr})`}
+          className={`${clean ? "cursor-pointer hover:bg-rose-500/20 hover:text-rose-600 dark:hover:text-rose-400" : ""} rounded px-0.5 transition-colors duration-100 ${highlightClass}`}
+          title={clean ? `Bấm để tra từ: ${clean}${cefr ? ` (${cefr})` : ""}` : undefined}
         >
           {token}
         </span>
