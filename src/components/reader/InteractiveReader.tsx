@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { UserMenu } from "@/components/auth/UserMenu";
 import { cleanWord, CURATED_VOCAB, detectCEFRLevel } from "@/lib/dictionary";
 import { isWordSaved, saveWord, ReaderSettings, getReaderSettings, saveReaderSettings, getAppSettings } from "@/lib/storage";
 import { getEnglishVoices, findBestVoiceForPreset, VOICE_PRESETS, VoicePreset } from "@/lib/voice";
@@ -569,6 +570,9 @@ export function InteractiveReader({
             >
               <Highlighter className={`w-4 h-4 ${settings.highlightCefr ? "text-rose-600" : ""}`} />
             </Button>
+
+            {/* Tài khoản người dùng */}
+            <UserMenu />
           </div>
         </div>
       </div>

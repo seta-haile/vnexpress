@@ -3,6 +3,7 @@ import { Inter, Merriweather } from "next/font/google";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -30,7 +31,9 @@ export default function RootLayout({
     <html lang="vi" className={`${inter.variable} ${merriweather.variable} antialiased`}>
       <body className="min-h-screen bg-background text-foreground flex flex-col font-sans">
         <TooltipProvider>
-          {children}
+          <AuthGuard>
+            {children}
+          </AuthGuard>
           <Toaster position="bottom-right" richColors />
         </TooltipProvider>
       </body>
