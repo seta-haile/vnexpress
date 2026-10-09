@@ -1,4 +1,5 @@
 import { SavedWord, UserLearningStats } from "@/types/news";
+import { VoicePreset } from "./voice";
 
 const STORAGE_KEYS = {
   SAVED_WORDS: "vne_learning_saved_words_v1",
@@ -10,11 +11,15 @@ const STORAGE_KEYS = {
 export interface AppSettings {
   theme: 'light' | 'dark';
   showImages: boolean;
+  voicePreset: VoicePreset;
+  voiceURI?: string;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   theme: 'light',
-  showImages: true
+  showImages: true,
+  voicePreset: 'female-mature',
+  voiceURI: ''
 };
 
 export function getAppSettings(): AppSettings {
@@ -42,6 +47,8 @@ export interface ReaderSettings {
   highlightLevel: 'all' | 'B1' | 'B2' | 'C1';
   speechRate: number; // 0.75, 1.0, 1.25
   autoTranslateSentence: boolean;
+  voicePreset?: VoicePreset;
+  voiceURI?: string;
 }
 
 export const DEFAULT_READER_SETTINGS: ReaderSettings = {
@@ -51,7 +58,9 @@ export const DEFAULT_READER_SETTINGS: ReaderSettings = {
   highlightCefr: true,
   highlightLevel: 'all',
   speechRate: 1.0,
-  autoTranslateSentence: false
+  autoTranslateSentence: false,
+  voicePreset: 'female-mature',
+  voiceURI: ''
 };
 
 export function getSavedWords(): SavedWord[] {

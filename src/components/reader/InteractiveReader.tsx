@@ -23,7 +23,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cleanWord, CURATED_VOCAB, detectCEFRLevel } from "@/lib/dictionary";
-import { isWordSaved, saveWord, ReaderSettings, getReaderSettings, saveReaderSettings } from "@/lib/storage";
+import { isWordSaved, saveWord, ReaderSettings, getReaderSettings, saveReaderSettings, getAppSettings } from "@/lib/storage";
+import { getEnglishVoices, findBestVoiceForPreset, VOICE_PRESETS, VoicePreset } from "@/lib/voice";
 import confetti from "canvas-confetti";
 
 interface InteractiveReaderProps {
@@ -63,6 +64,15 @@ export function InteractiveReader({
   const [activeSpeechParagraph, setActiveSpeechParagraph] = useState<number | null>(null);
   const [speakingCharIndex, setSpeakingCharIndex] = useState<number | null>(null);
   const [speechSpeed, setSpeechSpeed] = useState<number>(settings.speechRate || 1.0);
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [voicePreset, setVoicePreset] = useState<VoicePreset>(() => {
+    const app = getAppSettings();
+    return settings.voicePreset || app.voicePreset || "female-mature";
+  });
+
+  useEffect(() => {
+    getEnglishVoices().then(setAvailableVoices);
+  }, []);
 
   const currentSectionIndexRef = useRef<number | null>(null);
   const isFullArticleModeRef = useRef<boolean>(false);
@@ -238,8 +248,11 @@ export function InteractiveReader({
       el.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
 
+    const { voice, pitch } = findBestVoiceForPreset(availableVoices, voicePreset, settings.voiceURI);
     const utterance = new SpeechSynthesisUtterance(section.text);
     utterance.lang = "en-US";
+    if (voice) utterance.voice = voice;
+    utterance.pitch = pitch;
     utterance.rate = speechSpeed;
 
     // Real-time word boundary event for karaoke highlight
@@ -329,8 +342,11 @@ export function InteractiveReader({
       setIsPlayingAudio(true);
       setSpeakingCharIndex(null);
 
+      const { voice, pitch } = findBestVoiceForPreset(availableVoices, voicePreset, settings.voiceURI);
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "en-US";
+      if (voice) utterance.voice = voice;
+      utterance.pitch = pitch;
       utterance.rate = speechSpeed;
       utterance.onboundary = (e) => {
         if (!isCancelledRef.current && (e.name === "word" || !e.name || typeof e.charIndex === "number")) {
@@ -367,6 +383,19 @@ export function InteractiveReader({
     const nextSpeed = speechSpeed === 1.0 ? 1.25 : speechSpeed === 1.25 ? 0.8 : 1.0;
     setSpeechSpeed(nextSpeed);
     updateSetting("speechRate", nextSpeed);
+    if (isPlayingAudio && currentSectionIndexRef.current !== null) {
+      const curIdx = currentSectionIndexRef.current;
+      playSectionByIndex(curIdx);
+    }
+  };
+
+  const handleCycleVoice = () => {
+    const currentIdx = VOICE_PRESETS.findIndex((v) => v.id === voicePreset);
+    const nextIdx = (currentIdx + 1) % VOICE_PRESETS.length;
+    const nextPreset = VOICE_PRESETS[nextIdx].id;
+    setVoicePreset(nextPreset);
+    updateSetting("voicePreset", nextPreset);
+
     if (isPlayingAudio && currentSectionIndexRef.current !== null) {
       const curIdx = currentSectionIndexRef.current;
       playSectionByIndex(curIdx);
@@ -468,6 +497,21 @@ export function InteractiveReader({
             >
               {speechSpeed}x
             </button>
+
+            {/* Quick Voice cycle button */}
+            {(() => {
+              const currentVoiceObj = VOICE_PRESETS.find((v) => v.id === voicePreset) || VOICE_PRESETS[0];
+              return (
+                <button
+                  onClick={handleCycleVoice}
+                  className="text-xs px-2 py-0.5 rounded-full hover:bg-background/80 text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors border border-border/40"
+                  title={`Đổi giọng đọc AI (Hiện tại: ${currentVoiceObj.title} - ${currentVoiceObj.badge})`}
+                >
+                  <span>{currentVoiceObj.icon}</span>
+                  <span className="hidden sm:inline font-semibold text-[11px]">{currentVoiceObj.title}</span>
+                </button>
+              );
+            })()}
           </div>
 
           {/* Right: Reading Appearance Settings */}
