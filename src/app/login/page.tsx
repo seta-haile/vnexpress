@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { saveAuthSession, DEMO_ACCOUNTS, createOrInitAdminAccount } from "@/lib/auth";
+import { saveAuthSession, DEMO_ACCOUNTS, createOrInitAdminAccount, isAdminUser } from "@/lib/auth";
 import { loginWithRealGoogle, loginWithRealFacebook } from "@/lib/oauth-sdk";
 import { User } from "@/types/auth";
 
@@ -91,18 +91,27 @@ export default function LoginPage() {
       }
 
       // Lưu / đồng bộ vào PostgreSQL Database qua API backend
+      let finalUser = loggedInUser;
       try {
-        await fetch("/api/auth/social-login", {
+        const res = await fetch("/api/auth/social-login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user: loggedInUser })
         });
+        const data = await res.json();
+        if (data && data.success && data.user) {
+          finalUser = data.user;
+        }
       } catch (e) {
         console.warn("Could not sync to DB:", e);
       }
 
-      saveAuthSession(loggedInUser);
-      router.push("/");
+      saveAuthSession(finalUser);
+      if (isAdminUser(finalUser)) {
+        router.push("/admin/settings");
+      } else {
+        router.push("/");
+      }
     } catch (err: any) {
       console.error(`${provider} login error:`, err);
       setErrorMsg(err.message || `Lỗi đăng nhập ${provider}`);

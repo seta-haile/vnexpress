@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getAuthSession, clearAuthSession, isAdminUser } from "@/lib/auth";
+import { getAuthSession, clearAuthSession, isAdminUser, syncSessionWithServer } from "@/lib/auth";
 import { User } from "@/types/auth";
 import { LoginModal } from "./LoginModal";
 
@@ -29,12 +29,17 @@ export function UserMenu({ onOpenVocabulary }: UserMenuProps) {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Sync auth state
+  // Sync auth state & sync latest role from database
   useEffect(() => {
     const update = () => {
       setUser(getAuthSession().user);
     };
     update();
+
+    // Auto synchronize permissions and role from PostgreSQL
+    syncSessionWithServer().then((synced) => {
+      if (synced) setUser(synced);
+    });
 
     window.addEventListener("auth-changed", update);
     return () => window.removeEventListener("auth-changed", update);
@@ -130,10 +135,19 @@ export function UserMenu({ onOpenVocabulary }: UserMenuProps) {
               <div className="text-xs text-muted-foreground truncate">
                 {user.email}
               </div>
-              <div className="mt-1 flex items-center gap-1.5">
-                <Badge className="text-[9px] py-0 px-1.5 font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border-none capitalize">
+              <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                <Badge className="text-[9px] py-0 px-1.5 font-semibold bg-muted text-foreground border-none capitalize">
                   {user.provider}
                 </Badge>
+                {isAdminUser(user) ? (
+                  <Badge className="text-[9px] py-0 px-1.5 font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-300 dark:border-rose-900/60">
+                    👑 Quản trị viên
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[9px] py-0 px-1.5 font-medium text-muted-foreground border-border/80">
+                    🎓 Học viên
+                  </Badge>
+                )}
               </div>
             </div>
           </div>

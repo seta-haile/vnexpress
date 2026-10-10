@@ -1621,36 +1621,49 @@ export function getArticleSlug(articleUrl: string): string {
 }
 
 export function reconstructArticleUrl(slug: string[] | string): string {
+  if (typeof slug === "string" && (slug.startsWith("http://") || slug.startsWith("https://"))) {
+    return slug;
+  }
   const parts = Array.isArray(slug) ? slug : slug.split("/");
   const prefix = parts[0];
-  const rest = parts.slice(1).join("/");
+  const rawRest = parts.slice(1).join("/");
+  let rest = rawRest;
+  try {
+    rest = decodeURIComponent(rawRest);
+  } catch {
+    rest = rawRest;
+  }
+
+  if (rest.startsWith("http://") || rest.startsWith("https://")) {
+    return rest;
+  }
 
   if (prefix === "hony") {
     return `https://humansofnyarchive.com/post/${rest}`;
   }
   if (prefix === "guardian") {
-    return `https://www.theguardian.com/${decodeURIComponent(rest)}`;
+    return `https://www.theguardian.com/${rest.replace(/^\//, "")}`;
   }
   if (prefix === "theconversation") {
-    return `https://theconversation.com/${decodeURIComponent(rest)}`;
+    return `https://theconversation.com/${rest.replace(/^\//, "")}`;
   }
   if (prefix === "propublica") {
-    return `https://www.propublica.org/${decodeURIComponent(rest)}`;
+    return `https://www.propublica.org/${rest.replace(/^\//, "")}`;
   }
   if (prefix === "wikinews") {
-    return `https://en.wikinews.org/wiki/${decodeURIComponent(rest)}`;
+    return `https://en.wikinews.org/wiki/${rest.replace(/^\//, "")}`;
   }
   if (prefix === "gutenberg") {
-    return `https://www.gutenberg.org/ebooks/${decodeURIComponent(rest)}`;
+    return `https://www.gutenberg.org/ebooks/${rest.replace(/^\//, "")}`;
   }
   if (prefix === "globalvoices") {
-    return `https://globalvoices.org/${decodeURIComponent(rest)}`;
+    return `https://globalvoices.org/${rest.replace(/^\//, "")}`;
   }
   if (prefix === "npr") {
-    return `https://www.npr.org/${decodeURIComponent(rest)}`;
+    return `https://www.npr.org/${rest.replace(/^\//, "")}`;
   }
   if (prefix === "bbc") {
-    return `https://www.bbc.com/${decodeURIComponent(rest)}`;
+    return `https://www.bbc.com/${rest.replace(/^\//, "")}`;
   }
   const clean = parts.join("/").replace(/\.html$/, "") + ".html";
   return `https://e.vnexpress.net/${clean}`;

@@ -4,6 +4,9 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import { ArticleDetail, KeyVocab, SavedWord, WordDefinition } from "@/types/news";
 import { WordInspector } from "./WordInspector";
+import { ShadowingModal } from "./ShadowingModal";
+import { SpeedReadingModal } from "./SpeedReadingModal";
+import { GrammarBreakdownModal } from "./GrammarBreakdownModal";
 import { 
   Volume2, 
   VolumeX, 
@@ -21,7 +24,11 @@ import {
   Highlighter, 
   Sliders, 
   RotateCcw,
-  Headphones
+  Headphones,
+  Mic,
+  Zap,
+  Puzzle,
+  Columns
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,11 +57,17 @@ export function InteractiveReader({
   isRead = false,
   showImages = true
 }: InteractiveReaderProps) {
-  // Reader display settings
+  // Reader display settings & view modes
   const [settings, setSettings] = useState<ReaderSettings>(getReaderSettings());
+  const [viewMode, setViewMode] = useState<"standard" | "bilingual">("standard");
   const [showTranslations, setShowTranslations] = useState<Record<string, boolean>>({});
   const [translatedParagraphs, setTranslatedParagraphs] = useState<Record<string, string>>({});
   const [loadingTranslations, setLoadingTranslations] = useState<Record<string, boolean>>({});
+
+  // Specialized Learning Modals state
+  const [shadowingSentence, setShadowingSentence] = useState<string | null>(null);
+  const [grammarSentence, setGrammarSentence] = useState<string | null>(null);
+  const [isSpeedReadingOpen, setIsSpeedReadingOpen] = useState(false);
 
   // Word & Text selection state
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
@@ -198,7 +211,11 @@ export function InteractiveReader({
 
   // Translate a specific paragraph
   const handleTranslateParagraph = async (pId: string, text: string) => {
-    if (showTranslations[pId]) {
+    const isCurrentlyVisible = viewMode === "bilingual"
+      ? showTranslations[pId] !== false
+      : showTranslations[pId] === true;
+
+    if (isCurrentlyVisible) {
       setShowTranslations(prev => ({ ...prev, [pId]: false }));
       return;
     }
@@ -451,7 +468,7 @@ export function InteractiveReader({
       {/* Reader Navigation & Controls Bar */}
       <div className="sticky top-0 z-40 w-full border-b border-border/40 backdrop-blur-md bg-background/90 supports-[backdrop-filter]:bg-background/80">
         <div className="max-w-4xl mx-auto px-2 sm:px-4 h-14 flex items-center justify-between gap-1 sm:gap-2">
-          {/* Back & Next Article buttons & Dictation */}
+          {/* Back & Next Article buttons */}
           <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
             <Button
               variant="ghost"
@@ -463,19 +480,6 @@ export function InteractiveReader({
               <ArrowLeft className="w-4 h-4" />
               <span className="hidden md:inline">Quay lại</span>
             </Button>
-
-            {/* Nút Luyện nghe điền từ */}
-            <Link href={`/dictation/${getArticleSlug(article.link)}`}>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 px-2 sm:px-2.5 flex items-center gap-1 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border-amber-300/40 transition-all rounded-full"
-                title="Luyện nghe chép chính tả điền từ theo từng đoạn"
-              >
-                <Headphones className="w-3.5 h-3.5 text-amber-500" />
-                <span className="hidden sm:inline">Luyện nghe</span>
-              </Button>
-            </Link>
 
             {onNextArticle && (
               <Button
@@ -539,8 +543,48 @@ export function InteractiveReader({
             })()}
           </div>
 
-          {/* Right: Reading Appearance Settings */}
+          {/* Right: Reading Appearance Settings & View Modes */}
           <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+            {/* Bilingual Dual-view Toggle */}
+            <Button
+              variant={viewMode === "bilingual" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => {
+                if (viewMode === "bilingual") {
+                  setViewMode("standard");
+                  setShowTranslations({});
+                } else {
+                  setViewMode("bilingual");
+                  article.paragraphs.forEach((p) => {
+                    if (!translatedParagraphs[p.id]) {
+                      handleTranslateParagraph(p.id, p.text);
+                    }
+                  });
+                }
+              }}
+              className={`h-8 px-2 text-xs font-bold ${
+                viewMode === "bilingual"
+                  ? "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              title={viewMode === "bilingual" ? "Tắt chế độ đọc song ngữ" : "Bật chế độ đọc Song ngữ (Bilingual Dual-View)"}
+            >
+              <Columns className="w-3.5 h-3.5 sm:mr-1" />
+              <span className="hidden lg:inline">Song ngữ</span>
+            </Button>
+
+            {/* Speed Reading RSVP Toggle */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsSpeedReadingOpen(true)}
+              className="h-8 px-2 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+              title="Mở chế độ Luyện đọc nhanh (Speed Reading RSVP)"
+            >
+              <Zap className="w-3.5 h-3.5 sm:mr-1" />
+              <span className="hidden lg:inline">Đọc nhanh</span>
+            </Button>
+
             {/* Font Family Toggle */}
             <Button
               variant="ghost"
@@ -598,7 +642,7 @@ export function InteractiveReader({
         </div>
       </div>
 
-      {/* Floating Action Button for Selected Text (Bôi đen để dịch) */}
+      {/* Floating Action Button for Selected Text (Bôi đen) */}
       {selectionPosition && selectedRangeText && (
         <div
           style={{
@@ -607,7 +651,7 @@ export function InteractiveReader({
             top: `${selectionPosition.y}px`,
             transform: "translate(-50%, -100%)"
           }}
-          className="z-50 animate-in fade-in zoom-in-95 duration-150"
+          className="z-50 animate-in fade-in zoom-in-95 duration-150 flex items-center gap-1.5 bg-card/95 backdrop-blur-md p-1.5 rounded-full border border-border/80 shadow-2xl"
         >
           <button
             onClick={(e) => {
@@ -616,10 +660,38 @@ export function InteractiveReader({
               setSelectedRangeText("");
               setSelectionPosition(null);
             }}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xl border border-white/20 transition-all hover:scale-105 cursor-pointer whitespace-nowrap"
+            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition-all hover:scale-105 cursor-pointer whitespace-nowrap"
           >
             <Languages className="w-3.5 h-3.5" />
-            <span>Dịch: "{selectedRangeText.length > 20 ? selectedRangeText.slice(0, 20) + "..." : selectedRangeText}"</span>
+            <span>Dịch nghĩa</span>
+          </button>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShadowingSentence(selectedRangeText);
+              setSelectedRangeText("");
+              setSelectionPosition(null);
+            }}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-sm transition-all hover:scale-105 cursor-pointer whitespace-nowrap"
+            title="Luyện nói câu này"
+          >
+            <Mic className="w-3.5 h-3.5" />
+            <span>Luyện nói</span>
+          </button>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setGrammarSentence(selectedRangeText);
+              setSelectedRangeText("");
+              setSelectionPosition(null);
+            }}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition-all hover:scale-105 cursor-pointer whitespace-nowrap"
+            title="Mổ xẻ ngữ pháp câu này"
+          >
+            <Puzzle className="w-3.5 h-3.5" />
+            <span>Ngữ pháp</span>
           </button>
         </div>
       )}
@@ -793,9 +865,11 @@ export function InteractiveReader({
         <article className={`space-y-6 ${fontClasses} ${fontSizeClasses}`}>
           {article.paragraphs.map((p, pIdx) => {
             const isPlayingThis = isPlayingAudio && activeSpeechParagraph === pIdx;
-            const isTranslated = showTranslations[p.id];
             const translatedText = translatedParagraphs[p.id];
             const isLoadingTrans = loadingTranslations[p.id];
+            const isParagraphTranslationVisible = viewMode === "bilingual"
+              ? showTranslations[p.id] !== false && !!translatedText
+              : showTranslations[p.id] === true && !!translatedText;
 
             return (
               <div 
@@ -811,13 +885,35 @@ export function InteractiveReader({
                 </p>
 
                 {/* Paragraph Toolbar on hover */}
-                <div className="mt-2.5 flex items-center gap-2 text-xs text-muted-foreground opacity-70 group-hover:opacity-100 transition-opacity">
+                <div className="mt-2.5 flex items-center gap-2 text-xs text-muted-foreground opacity-70 group-hover:opacity-100 transition-opacity flex-wrap">
                   <button
                     onClick={() => handlePlayParagraphTTS(pIdx, p.text)}
                     className="flex items-center gap-1 hover:text-rose-600 px-2 py-1 rounded-md hover:bg-muted/60 transition-colors"
                   >
                     <Volume2 className="w-3.5 h-3.5" />
-                    <span>{isPlayingThis ? "Dừng nghe" : "Nghe đoạn này"}</span>
+                    <span>{isPlayingThis ? "Dừng nghe" : "Nghe"}</span>
+                  </button>
+
+                  <span>•</span>
+
+                  <button
+                    onClick={() => setShadowingSentence(p.text)}
+                    className="flex items-center gap-1 hover:text-amber-500 px-2 py-1 rounded-md hover:bg-muted/60 transition-colors"
+                    title="Nghe câu mẫu và đọc nhại lại để AI chấm điểm"
+                  >
+                    <Mic className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Luyện nói</span>
+                  </button>
+
+                  <span>•</span>
+
+                  <button
+                    onClick={() => setGrammarSentence(p.text)}
+                    className="flex items-center gap-1 hover:text-purple-500 px-2 py-1 rounded-md hover:bg-muted/60 transition-colors"
+                    title="Mổ xẻ ngữ pháp, chủ ngữ, vị ngữ, thì của đoạn này"
+                  >
+                    <Puzzle className="w-3.5 h-3.5 text-purple-500" />
+                    <span>Ngữ pháp</span>
                   </button>
 
                   <span>•</span>
@@ -831,18 +927,18 @@ export function InteractiveReader({
                     <span>
                       {isLoadingTrans
                         ? "Đang dịch..."
-                        : isTranslated
+                        : isParagraphTranslationVisible
                         ? "Ẩn bản dịch"
-                        : "Dịch đoạn sang tiếng Việt"}
+                        : "Dịch nghĩa"}
                     </span>
                   </button>
                 </div>
 
-                {/* Inline Paragraph Translation */}
-                {isTranslated && translatedText && (
+                {/* Inline Paragraph Translation or Bilingual Dual-View Mode */}
+                {isParagraphTranslationVisible && (
                   <div className="mt-3 p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs sm:text-sm font-sans text-foreground leading-relaxed animate-in fade-in duration-200">
-                    <div className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1">
-                      Bản dịch tiếng Việt
+                    <div className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                      <span>🇻🇳 Bản dịch tiếng Việt</span>
                     </div>
                     {translatedText}
                   </div>
@@ -908,6 +1004,29 @@ export function InteractiveReader({
           setSelectedWord(null);
           setWordDef(null);
         }}
+      />
+
+      {/* 🎙️ AI Shadowing & Pronunciation Evaluation Modal */}
+      <ShadowingModal
+        isOpen={!!shadowingSentence}
+        onClose={() => setShadowingSentence(null)}
+        sentenceText={shadowingSentence || ""}
+        voicePreset={voicePreset}
+      />
+
+      {/* ⚡ Speed Reading (RSVP Mode) Modal */}
+      <SpeedReadingModal
+        isOpen={isSpeedReadingOpen}
+        onClose={() => setIsSpeedReadingOpen(false)}
+        text={article.paragraphs.map((p) => p.text).join(" ")}
+        articleTitle={article.title}
+      />
+
+      {/* 🧩 Grammar & Sentence Breakdown Modal */}
+      <GrammarBreakdownModal
+        isOpen={!!grammarSentence}
+        onClose={() => setGrammarSentence(null)}
+        sentenceText={grammarSentence || ""}
       />
     </div>
   );

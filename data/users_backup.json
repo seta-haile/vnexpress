@@ -1,0 +1,57 @@
+[
+  {
+    "id": "google_103616765975338903894",
+    "name": "Lee Hair",
+    "email": "studycodingai@gmail.com",
+    "avatar": "https://lh3.googleusercontent.com/a/ACg8ocLrq3nF1yqfk1iq0SPVK6ngz_iyaZAaQwe7HRwuHhI5QFrLHA=s96-c",
+    "provider": "google",
+    "providerId": "103616765975338903894",
+    "role": "admin",
+    "createdAt": "2026-10-10T08:29:12.638Z",
+    "lastLoginAt": "2026-10-10T08:31:07.683Z"
+  },
+  {
+    "id": "fb_9823456789",
+    "name": "Thanh Thảo",
+    "email": "thanh.thao.vne@gmail.com",
+    "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&auto=format&fit=crop&q=80",
+    "provider": "facebook",
+    "providerId": "9823456789",
+    "role": "learner",
+    "createdAt": "2026-10-10T08:26:51.779Z",
+    "lastLoginAt": "2026-10-10T08:26:51.779Z"
+  },
+  {
+    "id": "google_10823456789",
+    "name": "Minh Hoàng",
+    "email": "hoang.minh.developer@gmail.com",
+    "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80",
+    "provider": "google",
+    "providerId": "10823456789",
+    "role": "learner",
+    "createdAt": "2026-10-10T08:26:51.761Z",
+    "lastLoginAt": "2026-10-10T08:26:51.761Z"
+  },
+  {
+    "id": "usr_admin_master",
+    "name": "Admin Quản Trị",
+    "email": "admin@vnexpress.vn",
+    "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80",
+    "provider": "credentials",
+    "providerId": null,
+    "role": "admin",
+    "createdAt": "2026-10-10T08:26:44.308Z",
+    "lastLoginAt": "2026-10-10T08:26:44.308Z"
+  },
+  {
+    "id": "usr_admin_haile",
+    "name": "Hải Lê",
+    "email": "hai.le@vnereader.com",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=hai.le",
+    "provider": "credentials",
+    "providerId": null,
+    "role": "admin",
+    "createdAt": "2026-10-09T11:48:16.273Z",
+    "lastLoginAt": "2026-10-10T08:21:31.084Z"
+  }
+]

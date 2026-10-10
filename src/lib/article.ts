@@ -290,6 +290,169 @@ async function fetchWikinewsArticleDetail(url: string): Promise<ArticleDetail | 
   }
 }
 
+async function fetchArticleDetailViaProxy(url: string): Promise<ArticleDetail | null> {
+  try {
+    const jinaUrl = `https://r.jina.ai/${url}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+    const res = await fetch(jinaUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "text/plain"
+      },
+      signal: controller.signal,
+      next: { revalidate: 600 }
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) return null;
+    const text = await res.text();
+
+    // Title
+    const titleMatch = text.match(/^Title:\s*(.+)$/m);
+    const title = titleMatch ? titleMatch[1].trim() : "Article Detail";
+
+    // Published date
+    const dateMatch = text.match(/^Published Time:\s*(.+)$/m);
+    const pubDate = dateMatch ? new Date(dateMatch[1].trim()).toLocaleDateString("en-US") : new Date().toLocaleDateString("en-US");
+
+    // Image & Caption
+    const allImages = Array.from(text.matchAll(/!\[(.*?)\]\((https:\/\/[^\s)]+)\)/g));
+    let thumbnail = "";
+    let caption = "";
+    for (const m of allImages) {
+      const imgUrl = m[2];
+      const cap = m[1];
+      if (!imgUrl.includes("placeholder") && !imgUrl.includes("logo") && !imgUrl.includes("icon")) {
+        thumbnail = imgUrl;
+        caption = cap.replace(/^Image\s*\d*:\s*/i, "").trim();
+        break;
+      }
+    }
+
+    // Parse paragraphs from Markdown Content
+    const lines = text.split("\n");
+    const rawParagraphs: string[] = [];
+    let inContent = false;
+    let currentP = "";
+
+    for (let line of lines) {
+      line = line.trim();
+      if (!line) {
+        if (currentP.length > 25) {
+          rawParagraphs.push(currentP);
+        }
+        currentP = "";
+        continue;
+      }
+      if (line.startsWith("Markdown Content:")) {
+        inContent = true;
+        continue;
+      }
+      if (!inContent) continue;
+      if (
+        line.startsWith("![") ||
+        line.startsWith("URL Source:") ||
+        line.startsWith("Published Time:") ||
+        line.startsWith("Title:")
+      ) {
+        continue;
+      }
+      if (
+        line.includes("BBC is not responsible") ||
+        line.includes("Sign up for") ||
+        line.includes("Copyright") ||
+        line.startsWith("Related Topics") ||
+        line.includes("Share this article")
+      ) {
+        continue;
+      }
+      if ((line.includes("reporter") || line.includes("correspondent")) && line.length < 50) {
+        continue;
+      }
+
+      currentP = currentP ? `${currentP} ${line}` : line;
+    }
+    if (currentP.length > 25) rawParagraphs.push(currentP);
+
+    const paragraphs: ArticleParagraph[] = rawParagraphs
+      .filter(p => p.length > 30 && !p.startsWith("Image caption") && !p.startsWith("Media caption"))
+      .map((p, idx) => ({ id: `p-${idx}`, text: p }));
+
+    if (paragraphs.length === 0) return null;
+
+    const lead = paragraphs[0]?.text || "";
+
+    // Determine category
+    let category = "News";
+    if (url.includes("theguardian.com")) category = "The Guardian World";
+    else if (url.includes("theconversation.com")) category = "The Conversation";
+    else if (url.includes("propublica.org")) category = "ProPublica";
+    else if (url.includes("globalvoices.org")) category = "Global Voices";
+    else if (url.includes("npr.org")) category = "NPR Stories";
+    else if (url.includes("bbc.co.uk") || url.includes("bbc.com")) category = "BBC News World";
+    else category = "International News";
+
+    // CEFR & Vocab
+    const fullText = [lead, ...paragraphs.map(p => p.text)].join(" ");
+    const { wordCount, cefrLevel } = estimateCEFR(fullText);
+
+    const extractedWords = new Set<string>();
+    const keyVocabulary: KeyVocab[] = [];
+    const tokens = fullText.split(/[\s,.;:!?()"“”']+/).map(cleanWord);
+
+    for (const token of tokens) {
+      if (token && CURATED_VOCAB[token] && !extractedWords.has(token)) {
+        extractedWords.add(token);
+        const item = CURATED_VOCAB[token];
+        keyVocabulary.push({
+          word: token,
+          ipa: item.ipa,
+          partOfSpeech: item.pos,
+          vietnamese: item.vi,
+          englishDefinition: item.en,
+          exampleSentence: item.example,
+          cefr: item.cefr
+        });
+      }
+    }
+
+    if (keyVocabulary.length < 3) {
+      const candidates = Array.from(new Set(tokens.filter(t => t.length >= 7))).slice(0, 5);
+      for (const cand of candidates) {
+        if (!extractedWords.has(cand)) {
+          extractedWords.add(cand);
+          keyVocabulary.push({
+            word: cand,
+            partOfSpeech: "term",
+            vietnamese: `Thuật ngữ: ${cand}`,
+            cefr: "B2"
+          });
+        }
+      }
+    }
+
+    return {
+      id: url,
+      title,
+      link: url,
+      pubDate,
+      category,
+      lead,
+      thumbnail: thumbnail || "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=1200&auto=format&fit=crop&q=80",
+      caption: caption || `${category} • Reader Intelligence`,
+      paragraphs,
+      wordCount,
+      cefrLevel,
+      keyVocabulary: keyVocabulary.slice(0, 10)
+    };
+  } catch (err) {
+    console.error("fetchArticleDetailViaProxy error:", err);
+    return null;
+  }
+}
+
 export async function fetchArticleDetail(url: string): Promise<ArticleDetail | null> {
   // 1. Classic Stories (Project Gutenberg / Standard Ebooks)
   if (url.includes("gutenberg.org") || url.includes("/gutenberg/") || url.startsWith("gutenberg")) {
@@ -306,18 +469,29 @@ export async function fetchArticleDetail(url: string): Promise<ArticleDetail | n
     return fetchHonyArticleDetail(url);
   }
 
+  // 4. BBC News (Use fast proxy reader directly because BBC direct connection is restricted by domestic ISPs)
+  if (url.includes("bbc.co.uk") || url.includes("bbc.com")) {
+    const proxyResult = await fetchArticleDetailViaProxy(url);
+    if (proxyResult) return proxyResult;
+  }
+
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4500);
+
     const res = await fetch(url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
       },
+      signal: controller.signal,
       next: { revalidate: 600 }
     });
+    clearTimeout(timeoutId);
 
     if (!res.ok) {
-      console.error(`Failed to fetch article from ${url}:`, res.statusText);
-      return null;
+      console.warn(`Direct fetch failed for ${url} (${res.statusText}), attempting proxy reader fallback...`);
+      return await fetchArticleDetailViaProxy(url);
     }
 
     const html = await res.text();
@@ -421,6 +595,11 @@ export async function fetchArticleDetail(url: string): Promise<ArticleDetail | n
       }
     }
 
+    if (paragraphs.length === 0) {
+      const fallbackProxy = await fetchArticleDetailViaProxy(url);
+      if (fallbackProxy) return fallbackProxy;
+    }
+
     // Determine category / source name
     let category = "News";
     if (url.includes("theguardian.com")) category = "The Guardian World";
@@ -487,7 +666,7 @@ export async function fetchArticleDetail(url: string): Promise<ArticleDetail | n
       keyVocabulary: keyVocabulary.slice(0, 10)
     };
   } catch (error) {
-    console.error(`Error parsing article ${url}:`, error);
-    return null;
+    console.warn(`Direct fetch failed for ${url}, fallback to proxy reader...`);
+    return await fetchArticleDetailViaProxy(url);
   }
 }

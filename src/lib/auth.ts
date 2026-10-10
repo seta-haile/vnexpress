@@ -22,6 +22,18 @@ export function saveAuthSession(user: User): AuthSession {
   if (typeof window !== "undefined") {
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
     window.dispatchEvent(new Event("auth-changed"));
+
+    // Automatically synchronize user with server database in background
+    try {
+      fetch("/api/auth/social-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user }),
+        keepalive: true
+      }).catch((err) => console.warn("Background auth sync notice:", err));
+    } catch (e) {
+      // ignore
+    }
   }
   return { user, isAuthenticated: true };
 }
@@ -31,6 +43,34 @@ export function clearAuthSession(): void {
     localStorage.removeItem(AUTH_STORAGE_KEY);
     window.dispatchEvent(new Event("auth-changed"));
   }
+}
+
+/**
+ * Synchronize user session with PostgreSQL database to ensure role & permissions are always up-to-date
+ */
+export async function syncSessionWithServer(): Promise<User | null> {
+  if (typeof window === "undefined") return null;
+  const current = getAuthSession().user;
+  if (!current || !current.email) return null;
+
+  try {
+    const res = await fetch(`/api/auth/me?email=${encodeURIComponent(current.email)}`);
+    const data = await res.json();
+    if (data.success && data.user) {
+      const dbUser: User = data.user;
+      // If role or profile changed in DB, update local storage immediately
+      if (dbUser.role !== current.role || dbUser.name !== current.name || dbUser.avatar !== current.avatar) {
+        const merged: User = { ...current, ...dbUser };
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(merged));
+        window.dispatchEvent(new Event("auth-changed"));
+        return merged;
+      }
+      return dbUser;
+    }
+  } catch (err) {
+    console.warn("Could not sync session with server:", err);
+  }
+  return current;
 }
 
 // Sample accounts for immediate local review & testing

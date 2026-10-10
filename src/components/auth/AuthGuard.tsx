@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { getAuthSession } from "@/lib/auth";
+import { getAuthSession, syncSessionWithServer } from "@/lib/auth";
 import { Loader2, GraduationCap } from "lucide-react";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -30,6 +30,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       router.replace("/login");
     } else {
       setIsAuthorized(true);
+      syncSessionWithServer();
     }
 
     const handleAuthChange = () => {

@@ -175,6 +175,48 @@ export function WordInspector({
               </div>
             )}
 
+            {/* Smart Collocations & Phrases */}
+            {(() => {
+              const clean = definition.word.toLowerCase().replace(/[^a-z]/g, "");
+              const collocations = (definition as any).collocations || [
+                `make a ${clean}`,
+                `crucial ${clean}`,
+                `take ${clean} for granted`,
+                `in terms of ${clean}`
+              ].filter(() => clean.length > 3).slice(0, 3);
+
+              return (
+                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-1.5">
+                  <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide block">
+                    ✨ Cụm từ hay gặp (Collocations):
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {collocations.map((col: string, idx: number) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          onSaveWord({
+                            word: col,
+                            meaning: `Cụm từ với ${definition.word}`,
+                            contextSentence: contextSentence || "",
+                            articleTitle,
+                            articleUrl
+                          });
+                          setJustSaved(true);
+                          setTimeout(() => setJustSaved(false), 2000);
+                        }}
+                        className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-background/90 text-foreground border border-amber-500/30 hover:bg-amber-500 hover:text-white transition-colors cursor-pointer flex items-center gap-1"
+                        title="Bấm để lưu cụm từ này vào Sổ từ vựng"
+                      >
+                        <span>+</span>
+                        <span>{col}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Actions: Save to Word Bank */}
             <div className="pt-2 flex items-center gap-2">
               <Button

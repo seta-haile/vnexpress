@@ -93,18 +93,23 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
       }
 
       // Lưu / đồng bộ vào PostgreSQL Database qua API backend
+      let finalUser = loggedInUser;
       try {
-        await fetch("/api/auth/social-login", {
+        const res = await fetch("/api/auth/social-login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user: loggedInUser })
         });
+        const data = await res.json();
+        if (data && data.success && data.user) {
+          finalUser = data.user;
+        }
       } catch (e) {
         console.warn("Could not sync to DB:", e);
       }
 
-      saveAuthSession(loggedInUser);
-      if (onSuccess) onSuccess(loggedInUser);
+      saveAuthSession(finalUser);
+      if (onSuccess) onSuccess(finalUser);
       onClose();
     } catch (err: any) {
       console.error(`${provider} login error:`, err);
