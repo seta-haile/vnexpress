@@ -75,6 +75,8 @@ export function getDbPool(): Pool | null {
     process.env.DATABASE_URL || 
     process.env.POSTGRES_URL || 
     process.env.NEON_DATABASE_URL ||
+    process.env.STORAGE_URL ||
+    process.env.STORAGE_POSTGRES_URL ||
     process.env.POSTGRES_URL_NON_POOLING;
 
   if (!connectionString) {
