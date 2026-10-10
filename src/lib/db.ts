@@ -71,14 +71,20 @@ export function saveBackupUsers(users: User[]): void {
 }
 
 export function getDbPool(): Pool | null {
-  if (!process.env.DATABASE_URL) {
+  const connectionString = 
+    process.env.DATABASE_URL || 
+    process.env.POSTGRES_URL || 
+    process.env.NEON_DATABASE_URL ||
+    process.env.POSTGRES_URL_NON_POOLING;
+
+  if (!connectionString) {
     return null;
   }
 
   if (!pool) {
-    const isLocal = process.env.DATABASE_URL.includes("localhost") || process.env.DATABASE_URL.includes("127.0.0.1");
+    const isLocal = connectionString.includes("localhost") || connectionString.includes("127.0.0.1");
     pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
+      connectionString,
       ssl: isLocal ? false : { rejectUnauthorized: false }
     });
   }
