@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { removeSavedWord, updateWordMastery } from "@/lib/storage";
+import { playNeuralAudio } from "@/lib/voice";
 
 interface VocabularyDrawerProps {
   isOpen: boolean;
@@ -53,16 +54,12 @@ export function VocabularyDrawer({
   });
 
   const handlePlayAudio = (word: string) => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-      setPlayingWord(word);
-      const utterance = new SpeechSynthesisUtterance(word);
-      utterance.lang = "en-US";
-      utterance.rate = 0.9;
-      utterance.onend = () => setPlayingWord(null);
-      utterance.onerror = () => setPlayingWord(null);
-      window.speechSynthesis.speak(utterance);
-    }
+    setPlayingWord(word);
+    playNeuralAudio(word, {
+      rate: 0.9,
+      onEnd: () => setPlayingWord(null),
+      onError: () => setPlayingWord(null)
+    });
   };
 
   const handleDelete = (id: string) => {

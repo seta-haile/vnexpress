@@ -10,11 +10,12 @@ import {
   Sparkles, 
   ChevronDown,
   CheckCircle2,
-  LogIn
+  LogIn,
+  ShieldCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getAuthSession, clearAuthSession } from "@/lib/auth";
+import { getAuthSession, clearAuthSession, isAdminUser } from "@/lib/auth";
 import { User } from "@/types/auth";
 import { LoginModal } from "./LoginModal";
 
@@ -64,10 +65,10 @@ export function UserMenu({ onOpenVocabulary }: UserMenuProps) {
           variant="outline"
           size="sm"
           onClick={() => setIsLoginModalOpen(true)}
-          className="flex items-center gap-1.5 border-rose-300 dark:border-rose-900/50 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-semibold"
+          className="flex items-center gap-1 px-2.5 sm:px-3 border-rose-300 dark:border-rose-900/50 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-semibold text-xs"
         >
           <LogIn className="w-3.5 h-3.5" />
-          <span>Đăng nhập</span>
+          <span className="hidden xs:inline">Đăng nhập</span>
         </Button>
 
         <LoginModal
@@ -84,25 +85,26 @@ export function UserMenu({ onOpenVocabulary }: UserMenuProps) {
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setIsOpenDropdown(!isOpenDropdown)}
-        className="flex items-center gap-2 p-1 pl-2 pr-2.5 rounded-full border border-border/80 hover:bg-muted/60 transition-all cursor-pointer"
+        className="flex items-center gap-1.5 p-1 sm:pl-2 sm:pr-2.5 rounded-full border border-border/80 hover:bg-muted/60 transition-all cursor-pointer flex-shrink-0"
+        title={user.name}
       >
         {user.avatar ? (
           <img
             src={user.avatar}
             alt={user.name}
-            className="w-6 h-6 rounded-full object-cover ring-1 ring-rose-500/30"
+            className="w-6 h-6 rounded-full object-cover ring-1 ring-rose-500/30 flex-shrink-0"
           />
         ) : (
-          <div className="w-6 h-6 rounded-full bg-rose-500/20 text-rose-600 flex items-center justify-center text-xs font-bold">
+          <div className="w-6 h-6 rounded-full bg-rose-500/20 text-rose-600 flex items-center justify-center text-xs font-bold flex-shrink-0">
             {user.name.charAt(0).toUpperCase()}
           </div>
         )}
 
-        <span className="text-xs font-semibold text-foreground max-w-[90px] truncate hidden sm:inline">
+        <span className="text-xs font-semibold text-foreground max-w-[80px] md:max-w-[100px] truncate hidden md:inline">
           {user.name}
         </span>
 
-        <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${isOpenDropdown ? "rotate-180" : ""}`} />
+        <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform hidden sm:inline ${isOpenDropdown ? "rotate-180" : ""}`} />
       </button>
 
       {/* Dropdown Menu */}
@@ -147,6 +149,17 @@ export function UserMenu({ onOpenVocabulary }: UserMenuProps) {
 
           {/* Actions */}
           <div className="space-y-1">
+            {isAdminUser(user) && (
+              <Link
+                href="/admin/settings"
+                onClick={() => setIsOpenDropdown(false)}
+                className="w-full flex items-center gap-2 p-2 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 transition-colors text-left"
+              >
+                <ShieldCheck className="w-4 h-4 text-rose-600" />
+                <span>⚙️ Cài đặt Admin (Settings)</span>
+              </Link>
+            )}
+
             {onOpenVocabulary && (
               <button
                 onClick={() => {

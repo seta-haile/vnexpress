@@ -14,6 +14,7 @@ import {
   markArticleRead, 
   getAppSettings,
   saveAppSettings,
+  detectSourceId,
   AppSettings,
   DEFAULT_APP_SETTINGS
 } from "@/lib/storage";
@@ -35,21 +36,29 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PublicationsDirectory } from "./PublicationsDirectory";
 
+import { PUBLICATION_SOURCES } from "@/lib/rss";
+import { ActiveSourceFilter } from "@/types/news";
+import { getAuthSession, isAdminUser } from "@/lib/auth";
+import { getLocalSiteSettings, fetchRemoteSiteSettings, DEFAULT_SITE_SETTINGS, SiteSettings } from "@/lib/siteSettings";
+import { User } from "@/types/auth";
+
 interface NewsDashboardProps {
   initialArticles: NewsItem[];
   initialChannel: string;
-  initialSource?: "all" | "vnexpress" | "hony";
+  initialSource?: ActiveSourceFilter;
   allLatestArticles?: NewsItem[];
+  initialSiteSettings?: SiteSettings;
 }
 
 export function NewsDashboard({ 
   initialArticles, 
   initialChannel,
   initialSource = "all",
-  allLatestArticles = []
+  allLatestArticles = [],
+  initialSiteSettings
 }: NewsDashboardProps) {
   // Navigation & Channels
-  const [activeSource, setActiveSource] = useState<"all" | "vnexpress" | "hony">(initialSource);
+  const [activeSource, setActiveSource] = useState<ActiveSourceFilter>(initialSource);
   const [activeChannel, setActiveChannel] = useState(initialChannel);
   const [articles, setArticles] = useState<NewsItem[]>(initialArticles);
   const [isLoadingArticles, setIsLoadingArticles] = useState(false);
@@ -74,13 +83,51 @@ export function NewsDashboard({
   const [isFlashcardsOpen, setIsFlashcardsOpen] = useState(false);
   const [isQuizOpen, setIsQuizOpen] = useState(false);
 
+  // Auth and Site Settings for publication visibility
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(initialSiteSettings || DEFAULT_SITE_SETTINGS);
+
   // Load local storage on mount
   useEffect(() => {
     refreshData();
     const loadedSettings = getAppSettings();
     setAppSettings(loadedSettings);
     applyTheme(loadedSettings.theme);
+
+    setCurrentUser(getAuthSession().user);
+    if (!initialSiteSettings) {
+      setSiteSettings(getLocalSiteSettings());
+    }
+
+    // Always fetch latest settings directly from PostgreSQL / server
+    fetchRemoteSiteSettings().then((remote) => {
+      setSiteSettings(remote);
+    });
+
+    const handleAuth = () => {
+      setCurrentUser(getAuthSession().user);
+      fetchRemoteSiteSettings().then((remote) => setSiteSettings(remote));
+    };
+    const handleSiteSettings = (e: any) => {
+      setSiteSettings(e.detail || getLocalSiteSettings());
+    };
+
+    window.addEventListener("auth-changed", handleAuth);
+    window.addEventListener("site-settings-changed", handleSiteSettings);
+    return () => {
+      window.removeEventListener("auth-changed", handleAuth);
+      window.removeEventListener("site-settings-changed", handleSiteSettings);
+    };
   }, []);
+
+  const isUserAdmin = isAdminUser(currentUser);
+
+  // If regular user visits a disabled source, auto fallback to 'all'
+  useEffect(() => {
+    if (!isUserAdmin && activeSource !== "all" && !siteSettings.enabledSources.includes(activeSource)) {
+      setActiveSource("all");
+    }
+  }, [siteSettings.enabledSources, isUserAdmin, activeSource]);
 
   const applyTheme = (theme: "light" | "dark") => {
     if (typeof document !== "undefined") {
@@ -105,14 +152,30 @@ export function NewsDashboard({
     setUserStats(getUserStats());
   };
 
-  // Switch between Newspaper sources: "all" (directory), "vnexpress", "hony"
-  const handleSelectSource = async (source: "all" | "vnexpress" | "hony") => {
+  // Switch between Newspaper sources: "all" (directory) and 9 publication sources
+  const handleSelectSource = async (source: ActiveSourceFilter, updateUrl: boolean = true) => {
     setActiveSource(source);
+    if (updateUrl && typeof window !== "undefined") {
+      const newPath = source === "all" ? "/" : `/${source}`;
+      if (window.location.pathname !== newPath) {
+        window.history.pushState(null, "", newPath);
+      }
+    }
     if (source === "all") {
       return;
     }
 
-    const channelId = source === "hony" ? "hony-all" : "home";
+    let channelId = "home";
+    if (source === "hony") channelId = "hony-all";
+    else if (source === "bbc") channelId = "bbc-world";
+    else if (source === "guardian") channelId = "guardian-world";
+    else if (source === "npr") channelId = "npr-all";
+    else if (source === "theconversation") channelId = "theconversation-all";
+    else if (source === "propublica") channelId = "propublica-all";
+    else if (source === "wikinews") channelId = "wikinews-all";
+    else if (source === "gutenberg") channelId = "gutenberg-all";
+    else if (source === "globalvoices") channelId = "globalvoices-all";
+
     setActiveChannel(channelId);
     setIsLoadingArticles(true);
     try {
@@ -128,13 +191,29 @@ export function NewsDashboard({
     }
   };
 
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname.replace(/^\//, "").split("/")[0];
+      if (!path || path === "") {
+        handleSelectSource("all", false);
+      } else if (PUBLICATION_SOURCES.some((p) => p.id === path)) {
+        handleSelectSource(path as any, false);
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   // Change RSS channel within selected newspaper
   const handleSelectChannel = async (channelId: string) => {
     setActiveChannel(channelId);
     setIsLoadingArticles(true);
-    const sourceParam = activeSource === "hony" ? "hony" : "vnexpress";
+    const sourceParam = activeSource === "all" ? "vnexpress" : activeSource;
     try {
-      const res = await fetch(`/api/rss?source=${sourceParam}&channel=${channelId}`);
+      const res = await fetch(`/api/rss?source=${sourceParam}&channel=${channelId}&_t=${Date.now()}`, {
+        cache: "no-store"
+      });
       const data = await res.json();
       if (data.success && data.items) {
         setArticles(data.items);
@@ -146,17 +225,71 @@ export function NewsDashboard({
     }
   };
 
-  // Filter articles
-  const filteredArticles = articles.filter((a) => {
-    const matchesSearch =
-      a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCefr = cefrFilter === "all" || a.cefrLevel === cefrFilter;
-    return matchesSearch && matchesCefr;
-  });
+  // Filter articles by search query & CEFR difficulty
+  const filteredArticles = React.useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return articles.filter((a) => {
+      const matchesSearch =
+        !q ||
+        a.title.toLowerCase().includes(q) ||
+        a.description.toLowerCase().includes(q) ||
+        (a.category && a.category.toLowerCase().includes(q)) ||
+        (a.sourceName && a.sourceName.toLowerCase().includes(q));
+      const matchesCefr = cefrFilter === "all" || a.cefrLevel === cefrFilter;
+      return matchesSearch && matchesCefr;
+    });
+  }, [articles, searchQuery, cefrFilter]);
+
+  // Source-specific learning stats: tính riêng số bài đã đọc, từ vựng đã lưu và ngày đọc liên tiếp của từng tờ báo
+  const sourceStats = React.useMemo(() => {
+    if (activeSource === "all") {
+      return {
+        articlesRead: userStats.articlesRead,
+        wordsSaved: savedWords.length,
+        streakDays: userStats.streakDays
+      };
+    }
+
+    // 1. Số bài đã đọc của riêng tờ báo này
+    const readIdsForSource = userStats.readArticleIds.filter((id) => {
+      const art = articles.find((a) => a.id === id) || allLatestArticles.find((a) => a.id === id);
+      if (art && art.sourceId) {
+        return art.sourceId === activeSource;
+      }
+      return detectSourceId(id) === activeSource;
+    });
+
+    const perSourceStat = userStats.perSource?.[activeSource];
+    const articlesReadCount = Math.max(
+      readIdsForSource.length,
+      perSourceStat?.articlesRead || 0
+    );
+
+    // 2. Số từ vựng đã lưu của riêng tờ báo này
+    const wordsSavedCount = savedWords.filter((w) => {
+      if (w.sourceId) return w.sourceId === activeSource;
+      return detectSourceId(undefined, w.articleUrl) === activeSource;
+    }).length;
+
+    // 3. Số ngày học liên tiếp của riêng tờ báo này
+    let streak = 0;
+    if (perSourceStat?.streakDays) {
+      streak = perSourceStat.streakDays;
+    } else if (articlesReadCount > 0 || wordsSavedCount > 0) {
+      streak = userStats.streakDays || 1;
+    }
+
+    return {
+      articlesRead: articlesReadCount,
+      wordsSaved: wordsSavedCount,
+      streakDays: streak
+    };
+  }, [activeSource, userStats, savedWords, articles, allLatestArticles]);
+
+  const currentPublication = PUBLICATION_SOURCES.find((s) => s.id === activeSource);
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col transition-colors duration-200">
+    <div className="min-h-screen bg-background text-foreground flex flex-col w-full max-w-full overflow-x-hidden transition-colors duration-200">
       {/* Top Header */}
       <Header
         activeChannel={activeChannel}
@@ -171,141 +304,88 @@ export function NewsDashboard({
         userStats={userStats}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        siteSettings={siteSettings}
+        currentUser={currentUser}
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
+      <main className="flex-1 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 w-full max-w-full overflow-x-hidden space-y-6 sm:space-y-8">
         {activeSource === "all" ? (
           /* Newspaper List / Publications Directory Screen */
           <PublicationsDirectory
             onSelectSource={handleSelectSource}
-            latestArticles={allLatestArticles.length > 0 ? allLatestArticles : articles}
+            searchQuery={searchQuery}
+            latestArticles={
+              isUserAdmin
+                ? (allLatestArticles.length > 0 ? allLatestArticles : articles)
+                : (allLatestArticles.length > 0 ? allLatestArticles : articles).filter(
+                    (a) => !a.sourceId || siteSettings.enabledSources.includes(a.sourceId as any)
+                  )
+            }
             isArticleRead={(id) => userStats.readArticleIds.includes(id)}
+            settings={siteSettings}
+            currentUser={currentUser}
           />
         ) : (
           /* Individual Newspaper Feed View */
           <>
-            {/* Top Source Breadcrumb & Switcher Bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-card border border-border/80 shadow-sm">
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setActiveSource("all")}
-                  className="rounded-xl font-bold text-xs flex items-center gap-1.5 border-border hover:bg-muted"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Danh sách các báo</span>
-                </Button>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-black text-foreground flex items-center gap-1.5">
-                    {activeSource === "vnexpress" ? (
-                      <>
-                        <span className="text-rose-600">📰</span> VnExpress International
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-amber-500">🗽</span> Humans of New York
-                      </>
-                    )}
-                  </span>
-                  <Badge variant="secondary" className="text-[11px] font-semibold hidden sm:inline-flex">
-                    {activeSource === "vnexpress" ? "Thời sự & Học thuật" : "Chuyện đời thực & Chân dung"}
-                  </Badge>
+            {/* Compact & Streamlined Hero Interactive Learning Banner */}
+            <section className={`relative overflow-hidden rounded-2xl p-3.5 sm:p-5 shadow-lg border text-white bg-gradient-to-r ${
+              currentPublication?.gradient || "from-slate-900 via-zinc-900 to-black"
+            } border-white/10`}>
+              <div className="absolute top-0 right-0 -mt-8 -mr-8 w-72 h-72 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+                {/* Left Info */}
+                <div className="space-y-1 sm:space-y-1.5 max-w-2xl">
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded-full bg-white/15 backdrop-blur-md text-white text-[10px] sm:text-[11px] font-semibold border border-white/10">
+                      <Sparkles className="w-3 h-3 text-amber-300" />
+                      <span>{currentPublication?.readingStyle || "Luyện đọc tiếng Anh chuẩn báo chí"}</span>
+                    </span>
+                    <span className="text-[10px] sm:text-[11px] text-white/75 font-medium">
+                      • CEFR {currentPublication?.cefrRange || "B1 - C1"}
+                    </span>
+                  </div>
+
+                  <h1 className="text-base sm:text-lg font-black tracking-tight text-white leading-snug">
+                    {currentPublication?.name}{" "}
+                    <span className="font-normal opacity-90 text-xs sm:text-sm text-zinc-100 block sm:inline">
+                      — {currentPublication?.tagline}
+                    </span>
+                  </h1>
+
+                  <p className="text-zinc-200/90 text-xs leading-relaxed max-w-xl line-clamp-2">
+                    {currentPublication?.description}
+                  </p>
+                </div>
+
+                {/* Right Stats Grid */}
+                <div className="grid grid-cols-3 gap-2 w-full md:w-auto md:flex md:items-center flex-shrink-0">
+                  <div className="bg-white/10 backdrop-blur-md px-2.5 sm:px-3 py-1.5 rounded-xl border border-white/15 text-center min-w-0 md:min-w-[76px]">
+                    <div className="text-sm sm:text-lg font-black text-white leading-tight">
+                      {sourceStats.articlesRead}
+                    </div>
+                    <div className="text-[9px] sm:text-[10px] text-zinc-300 font-medium">Đã đọc</div>
+                  </div>
+
+                  <div className="bg-white/10 backdrop-blur-md px-2.5 sm:px-3 py-1.5 rounded-xl border border-white/15 text-center min-w-0 md:min-w-[76px]">
+                    <div className="text-sm sm:text-lg font-black text-rose-200 leading-tight">
+                      {sourceStats.wordsSaved}
+                    </div>
+                    <div className="text-[9px] sm:text-[10px] text-zinc-300 font-medium">Từ vựng</div>
+                  </div>
+
+                  <div className="bg-white/10 backdrop-blur-md px-2.5 sm:px-3 py-1.5 rounded-xl border border-white/15 text-center min-w-0 md:min-w-[76px]">
+                    <div className="text-sm sm:text-lg font-black text-amber-300 leading-tight flex items-center justify-center gap-0.5">
+                      <Flame className="w-3.5 h-3.5 fill-current text-amber-300" />
+                      {sourceStats.streakDays}d
+                    </div>
+                    <div className="text-[9px] sm:text-[10px] text-zinc-300 font-medium">Chuỗi ngày</div>
+                  </div>
                 </div>
               </div>
-
-              <div className="flex items-center gap-2">
-                {activeSource === "vnexpress" ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleSelectSource("hony")}
-                    className="text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 font-medium"
-                  >
-                    Chuyển sang Humans of NY ➔
-                  </Button>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleSelectSource("vnexpress")}
-                    className="text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 font-medium"
-                  >
-                    Chuyển sang VnExpress ➔
-                  </Button>
-                )}
-              </div>
-            </div>
-        {/* Hero Interactive Learning Banner */}
-        <section className={`relative overflow-hidden rounded-3xl p-6 sm:p-10 shadow-2xl border text-white ${
-          activeSource === "hony"
-            ? "bg-gradient-to-br from-amber-950 via-stone-900 to-zinc-950 border-amber-500/20"
-            : "bg-gradient-to-br from-rose-950 via-slate-900 to-zinc-950 border-white/10"
-        }`}>
-          <div className="absolute top-0 right-0 -mt-10 -mr-10 w-96 h-96 bg-rose-600/20 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-1/3 -mb-10 w-80 h-80 bg-amber-600/15 rounded-full blur-3xl pointer-events-none" />
-
-          <div className="relative z-10 max-w-2xl space-y-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-rose-300 text-xs font-semibold border border-white/10">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>
-                {activeSource === "hony" 
-                  ? "Kể Chuyện Đời Thực • Ngôn Ngữ Tự Nhiên Bản Xứ" 
-                  : "Phương Pháp Học Tiếng Anh Qua Báo Chí Tương Tác"}
-              </span>
-            </div>
-
-            <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight leading-tight">
-              {activeSource === "hony" ? (
-                <>
-                  Humans of New York, <br />
-                  <span className="bg-gradient-to-r from-amber-400 via-orange-300 to-amber-200 bg-clip-text text-transparent">
-                    học tiếng Anh qua chuyện đời thực
-                  </span>
-                </>
-              ) : (
-                <>
-                  Đọc báo quốc tế VnExpress, <br />
-                  <span className="bg-gradient-to-r from-rose-400 via-amber-300 to-rose-300 bg-clip-text text-transparent">
-                    làm chủ từ vựng IELTS & giao tiếp
-                  </span>
-                </>
-              )}
-            </h1>
-
-            <p className="text-zinc-300 text-xs sm:text-sm leading-relaxed max-w-xl">
-              {activeSource === "hony"
-                ? "Luyện đọc những lát cắt cuộc đời sâu sắc từ New York. Chạm vào bất kỳ từ nào để tra nghĩa, nghe phát âm với AI và đồng bộ tiến độ học tập."
-                : "Chạm vào bất kỳ từ nào để tra từ điển & nghe phát âm ngay tức thì. Lưu vào sổ từ vựng và củng cố trí nhớ với 3D Flashcards & Mini-Quiz mỗi ngày."}
-            </p>
-
-            {/* Quick Stats Grid */}
-            <div className="pt-2 grid grid-cols-3 gap-3 max-w-md">
-              <div className="bg-white/5 backdrop-blur-sm p-3 rounded-2xl border border-white/10 text-center">
-                <div className="text-xl sm:text-2xl font-black text-white">
-                  {userStats.articlesRead}
-                </div>
-                <div className="text-[11px] text-zinc-400">Bài đã đọc</div>
-              </div>
-
-              <div className="bg-white/5 backdrop-blur-sm p-3 rounded-2xl border border-white/10 text-center">
-                <div className="text-xl sm:text-2xl font-black text-rose-400">
-                  {savedWords.length}
-                </div>
-                <div className="text-[11px] text-zinc-400">Từ vựng đã lưu</div>
-              </div>
-
-              <div className="bg-white/5 backdrop-blur-sm p-3 rounded-2xl border border-white/10 text-center">
-                <div className="text-xl sm:text-2xl font-black text-amber-400 flex items-center justify-center gap-1">
-                  <Flame className="w-4 h-4 fill-current text-amber-400" />
-                  {userStats.streakDays}d
-                </div>
-                <div className="text-[11px] text-zinc-400">Ngày học liên tiếp</div>
-              </div>
-            </div>
-          </div>
-        </section>
+            </section>
 
         {/* Filter Toolbar: CEFR levels & Article Counts */}
         <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border/50">

@@ -66,15 +66,11 @@ export function ArticleCard({
 
           {/* Badges on Thumbnail */}
           <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
-            {article.sourceId === "hony" ? (
-              <Badge className="bg-amber-600/90 backdrop-blur-md text-white border-none text-[10px] font-bold">
-                HONY
-              </Badge>
-            ) : article.sourceId === "vnexpress" ? (
+            {article.sourceName && (
               <Badge className="bg-rose-600/90 backdrop-blur-md text-white border-none text-[10px] font-bold">
-                VnExpress
+                {article.sourceName}
               </Badge>
-            ) : null}
+            )}
             <Badge className="bg-black/60 backdrop-blur-md text-white border-white/20 text-[11px] font-medium">
               {article.category}
             </Badge>
@@ -106,6 +102,11 @@ export function ArticleCard({
         /* Text-Only Header Mode (When showImages is false) */
         <div className="p-4 pb-0 flex items-center justify-between gap-2 border-b border-border/30 bg-muted/20">
           <div className="flex items-center gap-1.5 flex-wrap">
+            {article.sourceName && (
+              <Badge variant="secondary" className="text-[10px] font-bold">
+                {article.sourceName}
+              </Badge>
+            )}
             <Badge variant="outline" className="text-[11px] font-medium">
               {article.category}
             </Badge>
@@ -136,7 +137,7 @@ export function ArticleCard({
         <div className="text-[11px] text-muted-foreground mb-2 flex items-center gap-2">
           <span>{formattedDate}</span>
           <span>•</span>
-          <span className="text-rose-600 dark:text-rose-400 font-medium">VnExpress Int</span>
+          <span className="text-rose-600 dark:text-rose-400 font-semibold">{article.sourceName || "Tin Tức"}</span>
         </div>
 
         <h3 className="font-bold text-base sm:text-lg text-foreground group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors line-clamp-2 leading-snug mb-2.5">

@@ -7,8 +7,21 @@ export interface RssChannel {
   description: string;
 }
 
+export type PublicationSourceId = 
+  | 'vnexpress' 
+  | 'bbc' 
+  | 'guardian' 
+  | 'theconversation' 
+  | 'propublica' 
+  | 'wikinews' 
+  | 'npr' 
+  | 'gutenberg' 
+  | 'globalvoices'
+  | 'hony';
+export type ActiveSourceFilter = 'all' | PublicationSourceId;
+
 export interface PublicationSource {
-  id: string; // 'vnexpress' | 'hony'
+  id: PublicationSourceId;
   name: string;
   shortName: string;
   badge: string;
@@ -102,6 +115,15 @@ export interface SavedWord {
   savedAt: string;
   mastery: 'new' | 'learning' | 'mastered';
   notes?: string;
+  sourceId?: string;
+}
+
+export interface SourceLearningStats {
+  articlesRead: number;
+  readArticleIds: string[];
+  wordsLearned: number;
+  streakDays: number;
+  lastActiveDate: string;
 }
 
 export interface UserLearningStats {
@@ -111,4 +133,5 @@ export interface UserLearningStats {
   lastActiveDate: string;
   dailyGoal: number;
   readArticleIds: string[];
+  perSource?: Record<string, SourceLearningStats>;
 }

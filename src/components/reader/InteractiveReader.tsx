@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import Link from "next/link";
 import { ArticleDetail, KeyVocab, SavedWord, WordDefinition } from "@/types/news";
 import { WordInspector } from "./WordInspector";
 import { 
@@ -13,31 +14,37 @@ import {
   Sparkles, 
   Bookmark, 
   ArrowLeft, 
+  ArrowRight, 
   CheckCircle2, 
   Share2, 
   BookOpen, 
-  Highlighter,
-  Sliders,
-  RotateCcw
+  Highlighter, 
+  Sliders, 
+  RotateCcw,
+  Headphones
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { UserMenu } from "@/components/auth/UserMenu";
 import { cleanWord, CURATED_VOCAB, detectCEFRLevel } from "@/lib/dictionary";
-import { isWordSaved, saveWord, ReaderSettings, getReaderSettings, saveReaderSettings, getAppSettings } from "@/lib/storage";
-import { getEnglishVoices, findBestVoiceForPreset, VOICE_PRESETS, VoicePreset } from "@/lib/voice";
+import { getArticleSlug } from "@/lib/rss";
+import { isWordSaved, saveWord, detectSourceId, ReaderSettings, getReaderSettings, saveReaderSettings, getAppSettings } from "@/lib/storage";
+import { getEnglishVoices, findBestVoiceForPreset, VOICE_PRESETS, VoicePreset, playNeuralAudio, stopNeuralAudio, pauseNeuralAudio, resumeNeuralAudio } from "@/lib/voice";
 import confetti from "canvas-confetti";
 
 interface InteractiveReaderProps {
   article: ArticleDetail;
+  nextArticle?: { title: string; slug: string } | null;
+  onNextArticle?: () => void;
   onBack: () => void;
-  onMarkRead: (articleId: string) => void;
+  onMarkRead: (articleId: string, sourceId?: string) => void;
   isRead?: boolean;
   showImages?: boolean;
 }
 
 export function InteractiveReader({
   article,
+  nextArticle,
+  onNextArticle,
   onBack,
   onMarkRead,
   isRead = false,
@@ -220,15 +227,14 @@ export function InteractiveReader({
     }
   };
 
-  // Text-to-Speech handler with karaoke-style boundary synchronization
+  // Text-to-Speech handler with Neural AI Voice
   const playSectionByIndex = (secIdx: number) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     if (secIdx < 0 || secIdx >= speechSections.length) {
       handleStopTTS();
       return;
     }
 
-    window.speechSynthesis.cancel();
+    stopNeuralAudio();
     isCancelledRef.current = false;
     currentSectionIndexRef.current = secIdx;
 
@@ -237,7 +243,7 @@ export function InteractiveReader({
     setIsPlayingAudio(true);
     setSpeakingCharIndex(null);
 
-    // Gently scroll active section into view
+    // Scroll active reading section to top of viewport with smooth animation and header offset
     const elId =
       section.index === -2
         ? "article-title-section"
@@ -246,71 +252,63 @@ export function InteractiveReader({
         : `article-p-${section.index}`;
     const el = document.getElementById(elId);
     if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      const headerOffset = 75; // 75px offset below sticky navigation header
+      const elementPosition = el.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+      window.scrollTo({
+        top: Math.max(0, offsetPosition),
+        behavior: "smooth"
+      });
     }
 
-    const { voice, pitch } = findBestVoiceForPreset(availableVoices, voicePreset, settings.voiceURI);
-    const utterance = new SpeechSynthesisUtterance(section.text);
-    utterance.lang = "en-US";
-    if (voice) utterance.voice = voice;
-    utterance.pitch = pitch;
-    utterance.rate = speechSpeed;
-
-    // Real-time word boundary event for karaoke highlight
-    utterance.onboundary = (event) => {
-      if (!isCancelledRef.current) {
-        if (event.name === "word" || !event.name || typeof event.charIndex === "number") {
-          setSpeakingCharIndex(event.charIndex);
+    playNeuralAudio(section.text, {
+      preset: voicePreset,
+      voiceKey: settings.voiceURI,
+      rate: speechSpeed,
+      onStart: () => {
+        setIsPlayingAudio(true);
+      },
+      onBoundary: (charIdx) => {
+        if (!isCancelledRef.current) {
+          setSpeakingCharIndex(charIdx >= 0 ? charIdx : null);
         }
-      }
-    };
+      },
+      onEnd: () => {
+        if (isCancelledRef.current) return;
 
-    utterance.onend = () => {
-      if (isCancelledRef.current) return;
-
-      if (isFullArticleModeRef.current) {
-        const nextIdx = secIdx + 1;
-        if (nextIdx < speechSections.length) {
-          // Pause briefly between sections for natural cadence
-          setTimeout(() => {
-            if (!isCancelledRef.current && isFullArticleModeRef.current) {
-              playSectionByIndex(nextIdx);
-            }
-          }, 300);
-          return;
+        if (isFullArticleModeRef.current) {
+          const nextIdx = secIdx + 1;
+          if (nextIdx < speechSections.length) {
+            // Pause briefly between sections for natural cadence
+            setTimeout(() => {
+              if (!isCancelledRef.current && isFullArticleModeRef.current) {
+                playSectionByIndex(nextIdx);
+              }
+            }, 300);
+            return;
+          }
         }
+
+        // Playback finished
+        setIsPlayingAudio(false);
+        setActiveSpeechParagraph(null);
+        setSpeakingCharIndex(null);
+        currentSectionIndexRef.current = null;
+        isFullArticleModeRef.current = false;
+      },
+      onError: () => {
+        setIsPlayingAudio(false);
+        setActiveSpeechParagraph(null);
+        setSpeakingCharIndex(null);
+        currentSectionIndexRef.current = null;
+        isFullArticleModeRef.current = false;
       }
-
-      // Playback finished
-      setIsPlayingAudio(false);
-      setActiveSpeechParagraph(null);
-      setSpeakingCharIndex(null);
-      currentSectionIndexRef.current = null;
-      isFullArticleModeRef.current = false;
-    };
-
-    utterance.onerror = (event) => {
-      if (event.error === "canceled" || event.error === "interrupted" || isCancelledRef.current) {
-        return;
-      }
-      console.warn("TTS Utterance error:", event);
-      setIsPlayingAudio(false);
-      setActiveSpeechParagraph(null);
-      setSpeakingCharIndex(null);
-      currentSectionIndexRef.current = null;
-      isFullArticleModeRef.current = false;
-    };
-
-    window.speechSynthesis.speak(utterance);
+    });
   };
 
   const handleStartFullTTS = () => {
     if (isPlayingAudio) {
       handleStopTTS();
-      return;
-    }
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      alert("Trình duyệt của bạn không hỗ trợ Text-to-Speech.");
       return;
     }
     if (speechSections.length === 0) return;
@@ -325,10 +323,6 @@ export function InteractiveReader({
       handleStopTTS();
       return;
     }
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      alert("Trình duyệt của bạn không hỗ trợ Text-to-Speech.");
-      return;
-    }
 
     isCancelledRef.current = false;
     isFullArticleModeRef.current = false;
@@ -337,34 +331,35 @@ export function InteractiveReader({
     if (secIdx !== -1) {
       playSectionByIndex(secIdx);
     } else {
-      // Fallback for single custom text
-      window.speechSynthesis.cancel();
-      setActiveSpeechParagraph(paragraphIndex);
-      setIsPlayingAudio(true);
+      stopNeuralAudio();
       setSpeakingCharIndex(null);
 
-      const { voice, pitch } = findBestVoiceForPreset(availableVoices, voicePreset, settings.voiceURI);
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "en-US";
-      if (voice) utterance.voice = voice;
-      utterance.pitch = pitch;
-      utterance.rate = speechSpeed;
-      utterance.onboundary = (e) => {
-        if (!isCancelledRef.current && (e.name === "word" || !e.name || typeof e.charIndex === "number")) {
-          setSpeakingCharIndex(e.charIndex);
+      const el = document.getElementById(`article-p-${paragraphIndex}`);
+      if (el) {
+        const headerOffset = 75;
+        const elementPosition = el.getBoundingClientRect().top;
+        const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+        window.scrollTo({
+          top: Math.max(0, offsetPosition),
+          behavior: "smooth"
+        });
+      }
+
+      playNeuralAudio(text, {
+        preset: voicePreset,
+        voiceKey: settings.voiceURI,
+        rate: speechSpeed,
+        onBoundary: (charIdx) => {
+          if (!isCancelledRef.current) {
+            setSpeakingCharIndex(charIdx >= 0 ? charIdx : null);
+          }
+        },
+        onEnd: () => {
+          setIsPlayingAudio(false);
+          setActiveSpeechParagraph(null);
+          setSpeakingCharIndex(null);
         }
-      };
-      utterance.onend = () => {
-        setIsPlayingAudio(false);
-        setActiveSpeechParagraph(null);
-        setSpeakingCharIndex(null);
-      };
-      utterance.onerror = () => {
-        setIsPlayingAudio(false);
-        setActiveSpeechParagraph(null);
-        setSpeakingCharIndex(null);
-      };
-      window.speechSynthesis.speak(utterance);
+      });
     }
   };
 
@@ -372,9 +367,7 @@ export function InteractiveReader({
     isCancelledRef.current = true;
     isFullArticleModeRef.current = false;
     currentSectionIndexRef.current = null;
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
+    stopNeuralAudio();
     setIsPlayingAudio(false);
     setActiveSpeechParagraph(null);
     setSpeakingCharIndex(null);
@@ -404,14 +397,16 @@ export function InteractiveReader({
   };
 
   const handleSaveWordToStorage = (wordData: Omit<SavedWord, "id" | "savedAt" | "mastery">) => {
-    saveWord(wordData);
+    const sId = (wordData as any).sourceId || (article as any).sourceId || detectSourceId(article.id, article.link);
+    saveWord({ ...wordData, sourceId: sId });
     setSavedWordsState(prev => ({ ...prev, [wordData.word.toLowerCase()]: true }));
     confetti({ particleCount: 30, spread: 60, origin: { y: 0.85 } });
   };
 
   const handleCelebrationFinish = () => {
     setHasFinished(true);
-    onMarkRead(article.id);
+    const sId = (article as any).sourceId || detectSourceId(article.id, article.link);
+    onMarkRead(article.id, sId);
     confetti({ particleCount: 80, spread: 80, origin: { y: 0.6 } });
   };
 
@@ -443,7 +438,7 @@ export function InteractiveReader({
   return (
     <div 
       onMouseUp={handleMouseUp}
-      className={`min-h-screen ${themeClasses} transition-colors duration-200 select-text`}
+      className={`min-h-screen w-full max-w-full overflow-x-hidden ${themeClasses} transition-colors duration-200 select-text`}
     >
       {/* Scroll Progress Bar */}
       <div className="fixed top-0 left-0 right-0 h-1.5 bg-muted/30 z-50">
@@ -455,37 +450,66 @@ export function InteractiveReader({
 
       {/* Reader Navigation & Controls Bar */}
       <div className="sticky top-0 z-40 w-full border-b border-border/40 backdrop-blur-md bg-background/90 supports-[backdrop-filter]:bg-background/80">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-2">
-          {/* Back button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onBack}
-            className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Quay lại danh sách</span>
-          </Button>
+        <div className="max-w-4xl mx-auto px-2 sm:px-4 h-14 flex items-center justify-between gap-1 sm:gap-2">
+          {/* Back & Next Article buttons & Dictation */}
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onBack}
+              className="h-8 px-2 sm:px-2.5 flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
+              title="Quay lại danh sách bài báo"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden md:inline">Quay lại</span>
+            </Button>
+
+            {/* Nút Luyện nghe điền từ */}
+            <Link href={`/dictation/${getArticleSlug(article.link)}`}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-2 sm:px-2.5 flex items-center gap-1 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border-amber-300/40 transition-all rounded-full"
+                title="Luyện nghe chép chính tả điền từ theo từng đoạn"
+              >
+                <Headphones className="w-3.5 h-3.5 text-amber-500" />
+                <span className="hidden sm:inline">Luyện nghe</span>
+              </Button>
+            </Link>
+
+            {onNextArticle && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onNextArticle}
+                className="h-8 px-2 sm:px-2.5 flex items-center gap-1 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border-rose-300/40 transition-all"
+                title={nextArticle?.title ? `Bài kế tiếp: ${nextArticle.title}` : "Chuyển sang bài báo tiếp theo"}
+              >
+                <span className="hidden sm:inline">Bài tiếp</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Button>
+            )}
+          </div>
 
           {/* Center: TTS Audio player controls */}
-          <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-full border border-border/50">
+          <div className="flex items-center gap-1 sm:gap-1.5 bg-muted/60 p-1 rounded-full border border-border/50 shrink-0">
             <Button
               size="sm"
               variant={isPlayingAudio ? "default" : "ghost"}
               onClick={handleStartFullTTS}
-              className={`h-7 px-2.5 rounded-full text-xs font-medium flex items-center gap-1.5 ${
+              className={`h-7 px-2.5 rounded-full text-xs font-bold flex items-center gap-1 ${
                 isPlayingAudio ? "bg-rose-600 text-white hover:bg-rose-700 shadow-sm" : ""
               }`}
             >
               {isPlayingAudio ? (
                 <>
                   <Pause className="w-3.5 h-3.5 fill-current" />
-                  <span>Dừng đọc</span>
+                  <span>Dừng</span>
                 </>
               ) : (
                 <>
                   <Play className="w-3.5 h-3.5 fill-current text-rose-600" />
-                  <span>Nghe toàn bài (Karaoke)</span>
+                  <span>Nghe</span>
                 </>
               )}
             </Button>
@@ -493,7 +517,7 @@ export function InteractiveReader({
             {/* Speed toggle */}
             <button
               onClick={handleSpeedToggle}
-              className="text-[11px] font-bold px-2 py-0.5 rounded-full hover:bg-background/80 text-muted-foreground transition-colors"
+              className="text-[11px] font-bold px-1.5 py-0.5 rounded-full hover:bg-background/80 text-muted-foreground transition-colors"
               title="Tốc độ đọc"
             >
               {speechSpeed}x
@@ -505,24 +529,24 @@ export function InteractiveReader({
               return (
                 <button
                   onClick={handleCycleVoice}
-                  className="text-xs px-2 py-0.5 rounded-full hover:bg-background/80 text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors border border-border/40"
+                  className="text-xs px-1.5 sm:px-2 py-0.5 rounded-full hover:bg-background/80 text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors border border-border/40"
                   title={`Đổi giọng đọc AI (Hiện tại: ${currentVoiceObj.title} - ${currentVoiceObj.badge})`}
                 >
                   <span>{currentVoiceObj.icon}</span>
-                  <span className="hidden sm:inline font-semibold text-[11px]">{currentVoiceObj.title}</span>
+                  <span className="hidden md:inline font-semibold text-[11px]">{currentVoiceObj.title}</span>
                 </button>
               );
             })()}
           </div>
 
           {/* Right: Reading Appearance Settings */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
             {/* Font Family Toggle */}
             <Button
               variant="ghost"
               size="sm"
               onClick={() => updateSetting("fontFamily", settings.fontFamily === "serif" ? "sans" : "serif")}
-              className="h-8 w-8 p-0 text-xs font-bold"
+              className="h-8 w-7 sm:w-8 p-0 text-xs font-bold"
               title={settings.fontFamily === "serif" ? "Đổi sang Font Sans" : "Đổi sang Font Báo Chí (Serif)"}
             >
               {settings.fontFamily === "serif" ? "Serif" : "Sans"}
@@ -537,10 +561,10 @@ export function InteractiveReader({
                 const nextIdx = (sizes.indexOf(settings.fontSize) + 1) % sizes.length;
                 updateSetting("fontSize", sizes[nextIdx]);
               }}
-              className="h-8 w-8 p-0"
+              className="h-8 w-7 sm:w-8 p-0"
               title="Cỡ chữ"
             >
-              <Type className="w-4 h-4" />
+              <Type className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </Button>
 
             {/* Theme switcher */}
@@ -552,7 +576,7 @@ export function InteractiveReader({
                 const nextIdx = (themes.indexOf(settings.readerTheme) + 1) % themes.length;
                 updateSetting("readerTheme", themes[nextIdx]);
               }}
-              className="h-8 w-8 p-0 text-sm"
+              className="h-8 w-7 sm:w-8 p-0 text-sm"
               title="Đổi màu nền đọc"
             >
               {settings.readerTheme === "light" && "☀️"}
@@ -565,14 +589,11 @@ export function InteractiveReader({
               variant={settings.highlightCefr ? "secondary" : "ghost"}
               size="sm"
               onClick={() => updateSetting("highlightCefr", !settings.highlightCefr)}
-              className="h-8 w-8 p-0"
+              className="h-8 w-7 sm:w-8 p-0"
               title={settings.highlightCefr ? "Tắt highlight từ vựng" : "Bật highlight từ vựng theo CEFR"}
             >
-              <Highlighter className={`w-4 h-4 ${settings.highlightCefr ? "text-rose-600" : ""}`} />
+              <Highlighter className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${settings.highlightCefr ? "text-rose-600" : ""}`} />
             </Button>
-
-            {/* Tài khoản người dùng */}
-            <UserMenu />
           </div>
         </div>
       </div>
@@ -645,6 +666,39 @@ export function InteractiveReader({
               </div>
             </div>
           )}
+
+          {/* Banner Luyện Nghe Điền Từ (Dictation Practice CTA) */}
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-amber-500/5 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-inner">
+                <Headphones className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs sm:text-sm font-bold text-foreground">
+                    Luyện nghe chép chính tả bài này
+                  </span>
+                  <Badge className="bg-amber-500 text-white text-[9px] px-1.5 py-0 font-bold border-none">
+                    MỚI
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Chia bài báo thành các đoạn ngắn ~20 từ và điền từ còn thiếu
+                </p>
+              </div>
+            </div>
+
+            <Link href={`/dictation/${getArticleSlug(article.link)}`} className="shrink-0">
+              <Button
+                size="sm"
+                className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-full shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5 px-3.5 py-1.5"
+              >
+                <Headphones className="w-3.5 h-3.5" />
+                <span>Bắt đầu luyện nghe</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Button>
+            </Link>
+          </div>
 
           {/* Featured Image */}
           {showImages && article.thumbnail && (
@@ -812,13 +866,23 @@ export function InteractiveReader({
             Bạn vừa nạp thêm ~{article.wordCount} từ vựng tiếng Anh thực tế về chủ đề {article.category}.
           </p>
 
-          <div className="pt-2 flex items-center justify-center gap-3">
+          <div className="pt-2 flex items-center justify-center gap-3 flex-wrap">
             <Button
               onClick={handleCelebrationFinish}
               className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-md font-semibold"
             >
               ✓ Đánh dấu đã đọc & Tăng Streak
             </Button>
+
+            {onNextArticle && (
+              <Button
+                onClick={onNextArticle}
+                className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-md font-semibold flex items-center gap-1.5"
+              >
+                <span>Bài tiếp theo</span>
+                <ArrowRight className="w-4 h-4" />
+              </Button>
+            )}
 
             <Button
               variant="outline"

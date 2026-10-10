@@ -5,6 +5,7 @@ import { WordDefinition, SavedWord } from "@/types/news";
 import { Volume2, Bookmark, Check, X, Sparkles, Loader2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { playNeuralAudio } from "@/lib/voice";
 
 interface WordInspectorProps {
   definition: WordDefinition | null;
@@ -39,25 +40,23 @@ export function WordInspector({
     if (definition.audio) {
       const audio = new Audio(definition.audio);
       audio.onended = () => setIsPlayingAudio(false);
-      audio.onerror = () => fallbackWebSpeech();
-      audio.play().catch(() => fallbackWebSpeech());
+      audio.onerror = () => fallbackNeuralSpeech();
+      audio.play().catch(() => fallbackNeuralSpeech());
     } else {
-      fallbackWebSpeech();
+      fallbackNeuralSpeech();
     }
   };
 
-  const fallbackWebSpeech = () => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(definition?.word);
-      utterance.lang = "en-US";
-      utterance.rate = 0.9;
-      utterance.onend = () => setIsPlayingAudio(false);
-      utterance.onerror = () => setIsPlayingAudio(false);
-      window.speechSynthesis.speak(utterance);
-    } else {
+  const fallbackNeuralSpeech = () => {
+    if (!definition?.word) {
       setIsPlayingAudio(false);
+      return;
     }
+    playNeuralAudio(definition.word, {
+      rate: 0.9,
+      onEnd: () => setIsPlayingAudio(false),
+      onError: () => setIsPlayingAudio(false)
+    });
   };
 
   const handleSave = () => {

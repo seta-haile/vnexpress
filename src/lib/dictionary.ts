@@ -84,7 +84,7 @@ export async function lookupWord(rawText: string): Promise<WordDefinition> {
 
   const cleanedWord = cleanWord(query);
 
-  // 1. Check curated vocab first for lightning fast instant response
+  // 1. Check curated vocab first for instant response
   const curated = CURATED_VOCAB[cleanedWord];
   if (curated) {
     return {
@@ -103,42 +103,69 @@ export async function lookupWord(rawText: string): Promise<WordDefinition> {
     cefr: detectCEFRLevel(query)
   };
 
-  // 2. Fetch Google Translate for fast, reliable Vietnamese translation and part of speech
+  // 2. Fetch Vietnamese meaning via Google Translate API with browser User-Agent
   try {
     const gUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=vi&dt=t&dt=bd&dt=md&q=${encodeURIComponent(query)}`;
     const gRes = await fetch(gUrl, {
-      signal: AbortSignal.timeout(3000)
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/javascript, */*"
+      },
+      signal: AbortSignal.timeout(3500)
     });
 
     if (gRes.ok) {
-      const gData = await gRes.json();
-      
-      // Extract Vietnamese meaning
-      if (Array.isArray(gData[0])) {
-        const translatedParts = gData[0].map((part: any) => part[0]).filter(Boolean);
-        if (translatedParts.length > 0) {
-          result.vietnameseMeaning = translatedParts.join(" ");
+      const rawText = await gRes.text();
+      if (rawText.startsWith("[")) {
+        const gData = JSON.parse(rawText);
+        // Extract Vietnamese meaning
+        if (Array.isArray(gData[0])) {
+          const translatedParts = gData[0].map((part: any) => part[0]).filter(Boolean);
+          if (translatedParts.length > 0) {
+            result.vietnameseMeaning = translatedParts.join(" ").trim();
+          }
         }
-      }
 
-      // Extract Part of Speech and additional meanings
-      if (Array.isArray(gData[1]) && gData[1].length > 0) {
-        const firstEntry = gData[1][0];
-        result.partOfSpeech = firstEntry[0]; // e.g. "noun", "verb", "adjective"
-        if (Array.isArray(firstEntry[1]) && firstEntry[1].length > 0) {
-          result.synonyms = firstEntry[1].slice(0, 4);
+        // Extract Part of Speech and additional meanings
+        if (Array.isArray(gData[1]) && gData[1].length > 0) {
+          const firstEntry = gData[1][0];
+          result.partOfSpeech = firstEntry[0]; // e.g. "noun", "verb", "adjective"
+          if (Array.isArray(firstEntry[1]) && firstEntry[1].length > 0) {
+            result.synonyms = firstEntry[1].slice(0, 4);
+          }
         }
       }
     }
   } catch (err) {
-    console.warn("Google Translate lookup timed out or failed:", err);
+    console.warn("Google Translate lookup failed:", err);
   }
 
-  // 3. Concurrently fetch dictionaryapi.dev with a strict 1-second timeout (for IPA & Audio)
+  // 3. Fallback to MyMemory if Vietnamese meaning is still missing
+  if (!result.vietnameseMeaning) {
+    try {
+      const mUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(query)}&langpair=en|vi`;
+      const mRes = await fetch(mUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        },
+        signal: AbortSignal.timeout(3000)
+      });
+      if (mRes.ok) {
+        const mData = await mRes.json();
+        if (mData.responseData?.translatedText && mData.responseData.translatedText !== query) {
+          result.vietnameseMeaning = mData.responseData.translatedText.trim();
+        }
+      }
+    } catch (err) {
+      console.warn("MyMemory fallback failed:", err);
+    }
+  }
+
+  // 4. Concurrently fetch dictionaryapi.dev (for IPA & Audio)
   if (!query.includes(" ")) {
     try {
       const dictRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cleanedWord)}`, {
-        signal: AbortSignal.timeout(1200)
+        signal: AbortSignal.timeout(1500)
       });
 
       if (dictRes.ok) {
@@ -162,9 +189,9 @@ export async function lookupWord(rawText: string): Promise<WordDefinition> {
     }
   }
 
-  // Fallback if Vietnamese meaning is still empty
+  // Final fallback
   if (!result.vietnameseMeaning) {
-    result.vietnameseMeaning = `Nghĩa: ${query}`;
+    result.vietnameseMeaning = query;
   }
 
   return result;
@@ -174,34 +201,47 @@ export async function translateSentence(sentence: string): Promise<string> {
   const trimmed = sentence.trim();
   if (!trimmed) return "";
 
+  // 1. Google Translate
   try {
     const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=vi&dt=t&q=${encodeURIComponent(trimmed)}`;
     const res = await fetch(url, {
-      signal: AbortSignal.timeout(3500)
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/javascript, */*"
+      },
+      signal: AbortSignal.timeout(4000)
     });
 
     if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data[0])) {
-        return data[0].map((item: any) => item[0]).join("");
+      const rawText = await res.text();
+      if (rawText.startsWith("[")) {
+        const data = JSON.parse(rawText);
+        if (Array.isArray(data[0])) {
+          return data[0].map((item: any) => item[0]).filter(Boolean).join("").trim();
+        }
       }
     }
   } catch (e) {
-    console.error("Translation error:", e);
+    console.error("Google Translation error:", e);
   }
 
-  // Fallback to MyMemory if Google Translate fails
+  // 2. Fallback to MyMemory if Google Translate fails
   try {
     const res = await fetch(
       `https://api.mymemory.translated.net/get?q=${encodeURIComponent(trimmed)}&langpair=en|vi`,
-      { signal: AbortSignal.timeout(2500) }
+      { 
+        headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" },
+        signal: AbortSignal.timeout(3000) 
+      }
     );
     if (res.ok) {
       const data = await res.json();
-      return data.responseData?.translatedText || "Không thể dịch đoạn này.";
+      if (data.responseData?.translatedText) {
+        return data.responseData.translatedText.trim();
+      }
     }
   } catch (e) {
-    // Both failed
+    console.error("MyMemory Translation error:", e);
   }
 
   return "Bản dịch đang được cập nhật.";

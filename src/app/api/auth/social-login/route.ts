@@ -15,9 +15,13 @@ export async function POST(req: NextRequest) {
 
     const dbResult = await upsertUserInDb(user);
 
+    const effectiveUser = (dbResult.success && dbResult.dbUser)
+      ? { ...user, role: dbResult.dbUser.role || user.role }
+      : user;
+
     return NextResponse.json({
       success: true,
-      user,
+      user: effectiveUser,
       persistedToDb: dbResult.success,
       dbStatus: dbResult.success
         ? "Đã lưu thành công vào PostgreSQL"

@@ -4,13 +4,14 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArticleDetail } from "@/types/news";
 import { InteractiveReader } from "@/components/reader/InteractiveReader";
-import { getAppSettings, markArticleRead, getUserStats, AppSettings, DEFAULT_APP_SETTINGS } from "@/lib/storage";
+import { getAppSettings, markArticleRead, detectSourceId, getUserStats, AppSettings, DEFAULT_APP_SETTINGS } from "@/lib/storage";
 
 interface ArticleDetailClientProps {
   article: ArticleDetail;
+  nextArticle?: { title: string; slug: string } | null;
 }
 
-export function ArticleDetailClient({ article }: ArticleDetailClientProps) {
+export function ArticleDetailClient({ article, nextArticle }: ArticleDetailClientProps) {
   const router = useRouter();
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
   const [isRead, setIsRead] = useState(false);
@@ -39,14 +40,23 @@ export function ArticleDetailClient({ article }: ArticleDetailClientProps) {
     }
   };
 
+  const handleNextArticle = () => {
+    if (nextArticle?.slug) {
+      router.push(`/article/${nextArticle.slug}`);
+    }
+  };
+
   const handleMarkRead = (id: string) => {
-    markArticleRead(id);
+    const sId = (article as any).sourceId || detectSourceId(id, article.link);
+    markArticleRead(id, sId);
     setIsRead(true);
   };
 
   return (
     <InteractiveReader
       article={article}
+      nextArticle={nextArticle}
+      onNextArticle={nextArticle ? handleNextArticle : undefined}
       onBack={handleBack}
       onMarkRead={handleMarkRead}
       isRead={isRead}

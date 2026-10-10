@@ -6,7 +6,8 @@ import {
   VOICE_PRESETS, 
   VoicePreset, 
   playVoiceSample, 
-  getEnglishVoices 
+  getEnglishVoices,
+  stopNeuralAudio 
 } from "@/lib/voice";
 import { 
   X, 
@@ -48,10 +49,7 @@ export function SettingsModal({
         setAvailableVoices(voices);
       });
     } else {
-      // Stop sample preview if modal closed
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
+      stopNeuralAudio();
       setIsPlayingSample(null);
     }
   }, [isOpen]);
@@ -62,9 +60,7 @@ export function SettingsModal({
     if (e) e.stopPropagation();
 
     if (isPlayingSample === preset) {
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
+      stopNeuralAudio();
       setIsPlayingSample(null);
       return;
     }
@@ -86,15 +82,13 @@ export function SettingsModal({
             </div>
             <div>
               <h3 className="font-bold text-base text-foreground">Cài Đặt Hệ Thống</h3>
-              <p className="text-xs text-muted-foreground">Tùy biến giao diện & giọng đọc AI</p>
+              <p className="text-xs text-muted-foreground">Tùy biến giao diện & giọng đọc AI Neural (100% Free)</p>
             </div>
           </div>
 
           <button
             onClick={() => {
-              if (typeof window !== "undefined" && "speechSynthesis" in window) {
-                window.speechSynthesis.cancel();
-              }
+              stopNeuralAudio();
               onClose();
             }}
             className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -299,9 +293,7 @@ export function SettingsModal({
         <div className="pt-2">
           <Button
             onClick={() => {
-              if (typeof window !== "undefined" && "speechSynthesis" in window) {
-                window.speechSynthesis.cancel();
-              }
+              stopNeuralAudio();
               onClose();
             }}
             className="w-full bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-semibold shadow-md shadow-rose-600/30"

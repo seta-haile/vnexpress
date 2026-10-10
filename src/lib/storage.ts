@@ -73,17 +73,53 @@ export function getSavedWords(): SavedWord[] {
   }
 }
 
+export function detectSourceId(articleId?: string, url?: string): string {
+  if (articleId) {
+    const id = articleId.toLowerCase();
+    if (id.startsWith("bbc-") || id.startsWith("bbc_")) return "bbc";
+    if (id.startsWith("guardian-") || id.startsWith("guardian_")) return "guardian";
+    if (id.startsWith("theconversation-") || id.startsWith("conversation-")) return "theconversation";
+    if (id.startsWith("propublica-")) return "propublica";
+    if (id.startsWith("wikinews-")) return "wikinews";
+    if (id.startsWith("npr-")) return "npr";
+    if (id.startsWith("gutenberg-")) return "gutenberg";
+    if (id.startsWith("hony-") || /^\d{15,20}$/.test(id)) return "hony";
+    if (id.startsWith("globalvoices-")) return "globalvoices";
+    if (id.startsWith("vnexpress-")) return "vnexpress";
+  }
+  if (url) {
+    const u = url.toLowerCase();
+    if (u.includes("bbc.")) return "bbc";
+    if (u.includes("theguardian.")) return "guardian";
+    if (u.includes("theconversation.")) return "theconversation";
+    if (u.includes("propublica.")) return "propublica";
+    if (u.includes("wikinews.")) return "wikinews";
+    if (u.includes("npr.org")) return "npr";
+    if (u.includes("gutenberg.")) return "gutenberg";
+    if (u.includes("humansofnewyork") || u.includes("humansofnyarchive")) return "hony";
+    if (u.includes("globalvoices.")) return "globalvoices";
+    if (u.includes("vnexpress.")) return "vnexpress";
+  }
+  return "vnexpress";
+}
+
 export function saveWord(word: Omit<SavedWord, "id" | "savedAt" | "mastery">): SavedWord {
   const words = getSavedWords();
   const existingIdx = words.findIndex(w => w.word.toLowerCase() === word.word.toLowerCase());
   
+  const sourceId = word.sourceId || detectSourceId(undefined, word.articleUrl);
+
   if (existingIdx >= 0) {
-    // Already saved, return existing
+    if (!words[existingIdx].sourceId) {
+      words[existingIdx].sourceId = sourceId;
+      localStorage.setItem(STORAGE_KEYS.SAVED_WORDS, JSON.stringify(words));
+    }
     return words[existingIdx];
   }
 
   const newSaved: SavedWord = {
     ...word,
+    sourceId,
     id: `word-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     savedAt: new Date().toISOString(),
     mastery: 'new'
@@ -123,7 +159,8 @@ export function getUserStats(): UserLearningStats {
       streakDays: 1,
       lastActiveDate: new Date().toISOString().split("T")[0],
       dailyGoal: 5,
-      readArticleIds: []
+      readArticleIds: [],
+      perSource: {}
     };
   }
 
@@ -138,15 +175,19 @@ export function getUserStats(): UserLearningStats {
         streakDays: 1,
         lastActiveDate: today,
         dailyGoal: 5,
-        readArticleIds: []
+        readArticleIds: [],
+        perSource: {}
       };
       localStorage.setItem(STORAGE_KEYS.STATS, JSON.stringify(initial));
       return initial;
     }
 
     const stats: UserLearningStats = JSON.parse(raw);
+    if (!stats.perSource) {
+      stats.perSource = {};
+    }
     
-    // Check streak
+    // Check global streak
     if (stats.lastActiveDate !== today) {
       const last = new Date(stats.lastActiveDate);
       const curr = new Date(today);
@@ -169,18 +210,55 @@ export function getUserStats(): UserLearningStats {
       streakDays: 1,
       lastActiveDate: new Date().toISOString().split("T")[0],
       dailyGoal: 5,
-      readArticleIds: []
+      readArticleIds: [],
+      perSource: {}
     };
   }
 }
 
-export function markArticleRead(articleId: string): void {
+export function markArticleRead(articleId: string, sourceId?: string): void {
   const stats = getUserStats();
+  const sId = sourceId || detectSourceId(articleId);
+  const today = new Date().toISOString().split("T")[0];
+
+  if (!stats.perSource) {
+    stats.perSource = {};
+  }
+
   if (!stats.readArticleIds.includes(articleId)) {
     stats.readArticleIds.push(articleId);
     stats.articlesRead += 1;
-    localStorage.setItem(STORAGE_KEYS.STATS, JSON.stringify(stats));
   }
+
+  if (!stats.perSource[sId]) {
+    stats.perSource[sId] = {
+      articlesRead: 0,
+      readArticleIds: [],
+      wordsLearned: 0,
+      streakDays: 1,
+      lastActiveDate: today
+    };
+  }
+
+  const srcStat = stats.perSource[sId];
+  if (!srcStat.readArticleIds.includes(articleId)) {
+    srcStat.readArticleIds.push(articleId);
+    srcStat.articlesRead += 1;
+
+    if (srcStat.lastActiveDate !== today) {
+      const last = new Date(srcStat.lastActiveDate);
+      const curr = new Date(today);
+      const diffDays = Math.round((curr.getTime() - last.getTime()) / (1000 * 3600 * 24));
+      if (diffDays === 1) {
+        srcStat.streakDays += 1;
+      } else if (diffDays > 1) {
+        srcStat.streakDays = 1;
+      }
+      srcStat.lastActiveDate = today;
+    }
+  }
+
+  localStorage.setItem(STORAGE_KEYS.STATS, JSON.stringify(stats));
 }
 
 function incrementWordsCount(): void {

@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { saveAuthSession, DEMO_ACCOUNTS } from "@/lib/auth";
+import { saveAuthSession, DEMO_ACCOUNTS, createOrInitAdminAccount } from "@/lib/auth";
 import { loginWithRealGoogle, loginWithRealFacebook } from "@/lib/oauth-sdk";
 import { User } from "@/types/auth";
 
@@ -132,29 +132,50 @@ export default function LoginPage() {
     setErrorMsg(null);
 
     try {
+      // Check for Admin Account: admin / 123123
+      const cleanEmail = email.trim().toLowerCase();
+      if ((cleanEmail === "admin" || cleanEmail === "admin@vnexpress.vn") && password === "123123") {
+        const adminUser = createOrInitAdminAccount();
+        router.push("/admin/settings");
+        return;
+      }
+
+      const isHaiLe = cleanEmail === "hai.le@vnereader.com";
       const user: User = {
-        id: `usr_${Date.now()}`,
-        name: name.trim() || email.split("@")[0],
+        id: isHaiLe ? "usr_admin_haile" : `usr_${Date.now()}`,
+        name: name.trim() || (isHaiLe ? "Hải Lê" : email.split("@")[0]),
         email: email.trim(),
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(email)}`,
+        avatar: isHaiLe
+          ? "https://api.dicebear.com/7.x/avataaars/svg?seed=hai.le"
+          : `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(email)}`,
         provider: "credentials",
+        role: isHaiLe ? "admin" : "user",
         createdAt: new Date().toISOString(),
         lastLoginAt: new Date().toISOString()
       };
 
       // Lưu vào PostgreSQL Database qua API backend
+      let finalUser = user;
       try {
-        await fetch("/api/auth/social-login", {
+        const res = await fetch("/api/auth/social-login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user })
         });
+        const data = await res.json();
+        if (data?.user) {
+          finalUser = data.user;
+        }
       } catch (e) {
         console.warn("Could not sync to DB:", e);
       }
 
-      saveAuthSession(user);
-      router.push("/");
+      saveAuthSession(finalUser);
+      if (isHaiLe || finalUser.role === "admin") {
+        router.push("/admin/settings");
+      } else {
+        router.push("/");
+      }
     } catch (err: any) {
       setErrorMsg(err.message || "Lỗi đăng nhập email");
     } finally {

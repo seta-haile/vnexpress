@@ -56,3 +56,61 @@ export const DEMO_ACCOUNTS: Record<string, User> = {
     lastLoginAt: new Date().toISOString()
   }
 };
+
+// Admin Account Constants
+import { ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_EMAIL, ADMIN_DEFAULT_USER } from "@/types/auth";
+export { ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_EMAIL, ADMIN_DEFAULT_USER };
+
+export function isAdminUser(user: User | null): boolean {
+  if (!user) return false;
+  const cleanEmail = user.email?.toLowerCase().trim() || "";
+  return (
+    user.role === "admin" ||
+    cleanEmail === "admin" ||
+    cleanEmail === "admin@vnexpress.vn" ||
+    cleanEmail === "admin@admin.com" ||
+    cleanEmail === "hai.le@vnereader.com" ||
+    user.id === "usr_admin_master" ||
+    user.id === "usr_admin_haile"
+  );
+}
+
+export function loginWithAdminCredentials(username: string, password: string): { success: boolean; user?: User; error?: string } {
+  const cleanUser = username.trim().toLowerCase();
+  const cleanPass = password.trim();
+
+  if (cleanUser === "hai.le@vnereader.com" && cleanPass === ADMIN_PASSWORD) {
+    const adminUser: User = {
+      id: "usr_admin_haile",
+      name: "Hải Lê (Admin)",
+      email: "hai.le@vnereader.com",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=hai.le",
+      provider: "credentials",
+      role: "admin",
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString()
+    };
+    saveAuthSession(adminUser);
+    return { success: true, user: adminUser };
+  }
+
+  if ((cleanUser === "admin" || cleanUser === "admin@vnexpress.vn" || cleanUser === "admin@admin.com") && cleanPass === ADMIN_PASSWORD) {
+    const adminUser: User = {
+      ...ADMIN_DEFAULT_USER,
+      lastLoginAt: new Date().toISOString()
+    };
+    saveAuthSession(adminUser);
+    return { success: true, user: adminUser };
+  }
+
+  return { success: false, error: "Tên đăng nhập hoặc mật khẩu quản trị viên không chính xác" };
+}
+
+export function createOrInitAdminAccount(): User {
+  const adminUser: User = {
+    ...ADMIN_DEFAULT_USER,
+    lastLoginAt: new Date().toISOString()
+  };
+  saveAuthSession(adminUser);
+  return adminUser;
+}

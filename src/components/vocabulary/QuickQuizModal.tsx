@@ -6,6 +6,7 @@ import { CURATED_VOCAB } from "@/lib/dictionary";
 import { X, HelpCircle, CheckCircle, XCircle, Trophy, RotateCcw, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { playNeuralAudio } from "@/lib/voice";
 import confetti from "canvas-confetti";
 
 interface QuickQuizModalProps {
@@ -109,13 +110,7 @@ export function QuickQuizModal({ isOpen, onClose, savedWords }: QuickQuizModalPr
   };
 
   const handlePlayAudio = () => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(currentQ.word);
-      utterance.lang = "en-US";
-      utterance.rate = 0.9;
-      window.speechSynthesis.speak(utterance);
-    }
+    playNeuralAudio(currentQ.word, { rate: 0.9 });
   };
 
   return (

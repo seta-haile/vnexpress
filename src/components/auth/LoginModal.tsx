@@ -1,15 +1,15 @@
 "use client";
 
 import React, { useState } from "react";
-import { 
-  X, 
-  Mail, 
-  Lock, 
-  User as UserIcon, 
-  Eye, 
-  EyeOff, 
-  Sparkles, 
-  ShieldCheck, 
+import {
+  X,
+  Mail,
+  Lock,
+  User as UserIcon,
+  Eye,
+  EyeOff,
+  Sparkles,
+  ShieldCheck,
   Database,
   ArrowRight,
   CheckCircle2,
@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { saveAuthSession, DEMO_ACCOUNTS } from "@/lib/auth";
+import { saveAuthSession, DEMO_ACCOUNTS, createOrInitAdminAccount } from "@/lib/auth";
 import { loginWithRealGoogle, loginWithRealFacebook } from "@/lib/oauth-sdk";
 import { User } from "@/types/auth";
 
@@ -136,29 +136,47 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
     setErrorMsg(null);
 
     try {
+      // Check for Admin Account: admin@admin.com / 123123
+      const cleanEmail = email.trim().toLowerCase();
+      if ((cleanEmail === "admin@admin.com" || cleanEmail === "admin" || cleanEmail === "admin@vnexpress.vn") && password === "123123") {
+        const adminUser = createOrInitAdminAccount();
+        if (onSuccess) onSuccess(adminUser);
+        onClose();
+        return;
+      }
+
+      const isHaiLe = cleanEmail === "hai.le@vnereader.com";
       const user: User = {
-        id: `usr_${Date.now()}`,
-        name: name.trim() || email.split("@")[0],
+        id: isHaiLe ? "usr_admin_haile" : `usr_${Date.now()}`,
+        name: name.trim() || (isHaiLe ? "Hải Lê" : email.split("@")[0]),
         email: email.trim(),
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(email)}`,
+        avatar: isHaiLe
+          ? "https://api.dicebear.com/7.x/avataaars/svg?seed=hai.le"
+          : `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(email)}`,
         provider: "credentials",
+        role: isHaiLe ? "admin" : "user",
         createdAt: new Date().toISOString(),
         lastLoginAt: new Date().toISOString()
       };
 
       // Lưu vào PostgreSQL Database qua API backend
+      let finalUser = user;
       try {
-        await fetch("/api/auth/social-login", {
+        const res = await fetch("/api/auth/social-login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user })
         });
+        const data = await res.json();
+        if (data?.user) {
+          finalUser = data.user;
+        }
       } catch (e) {
         console.warn("Could not sync to DB:", e);
       }
 
-      saveAuthSession(user);
-      if (onSuccess) onSuccess(user);
+      saveAuthSession(finalUser);
+      if (onSuccess) onSuccess(finalUser);
       onClose();
     } catch (err: any) {
       setErrorMsg(err.message || "Lỗi đăng nhập email");
@@ -171,7 +189,7 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative w-full max-w-md bg-card text-card-foreground rounded-3xl shadow-2xl border border-border/80 overflow-hidden p-6 sm:p-7 space-y-5">
-        
+
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -202,11 +220,10 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
               setErrorMsg(null);
               setConfirmPassword("");
             }}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-              tab === "signin"
+            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tab === "signin"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             Đăng nhập
           </button>
@@ -217,11 +234,10 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
               setErrorMsg(null);
               setConfirmPassword("");
             }}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-              tab === "signup"
+            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tab === "signup"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             Đăng ký tài khoản
           </button>
@@ -377,9 +393,8 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-foreground">Xác nhận mật khẩu</label>
                 {confirmPassword && (
-                  <span className={`text-[11px] font-medium flex items-center gap-1 ${
-                    password === confirmPassword ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"
-                  }`}>
+                  <span className={`text-[11px] font-medium flex items-center gap-1 ${password === confirmPassword ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"
+                    }`}>
                     {password === confirmPassword ? (
                       <>
                         <CheckCircle2 className="w-3.5 h-3.5" /> Mật khẩu khớp
@@ -401,13 +416,12 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
                     setConfirmPassword(e.target.value);
                     if (errorMsg) setErrorMsg(null);
                   }}
-                  className={`w-full text-sm pl-9 pr-10 py-2 rounded-xl border bg-muted/40 focus:bg-background focus:outline-none focus:ring-2 ${
-                    confirmPassword && password !== confirmPassword
+                  className={`w-full text-sm pl-9 pr-10 py-2 rounded-xl border bg-muted/40 focus:bg-background focus:outline-none focus:ring-2 ${confirmPassword && password !== confirmPassword
                       ? "border-rose-400 focus:ring-rose-500/30"
                       : confirmPassword && password === confirmPassword
-                      ? "border-emerald-400 focus:ring-emerald-500/30"
-                      : "border-border focus:ring-rose-500/30"
-                  }`}
+                        ? "border-emerald-400 focus:ring-emerald-500/30"
+                        : "border-border focus:ring-rose-500/30"
+                    }`}
                 />
                 <button
                   type="button"

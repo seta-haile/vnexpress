@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { updateWordMastery } from "@/lib/storage";
+import { playNeuralAudio } from "@/lib/voice";
 import confetti from "canvas-confetti";
 
 interface FlashcardModalProps {
@@ -44,13 +45,7 @@ export function FlashcardModal({
 
   const handlePlayAudio = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(currentWord.word);
-      utterance.lang = "en-US";
-      utterance.rate = 0.9;
-      window.speechSynthesis.speak(utterance);
-    }
+    playNeuralAudio(currentWord.word, { rate: 0.9 });
   };
 
   const handleNext = () => {
