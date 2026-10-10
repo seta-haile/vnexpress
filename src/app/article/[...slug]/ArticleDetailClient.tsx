@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArticleDetail } from "@/types/news";
 import { InteractiveReader } from "@/components/reader/InteractiveReader";
 import { getAppSettings, markArticleRead, detectSourceId, getUserStats, AppSettings, DEFAULT_APP_SETTINGS } from "@/lib/storage";
+import { trackUserEvent } from "@/lib/trackerClient";
 
 interface ArticleDetailClientProps {
   article: ArticleDetail;
@@ -30,7 +31,17 @@ export function ArticleDetailClient({ article, nextArticle }: ArticleDetailClien
     // Check if article is read
     const stats = getUserStats();
     setIsRead(stats.readArticleIds.includes(article.id));
-  }, [article.id]);
+
+    // Track user reading event
+    const sourceId = (article as any).sourceId || detectSourceId(article.id, article.link);
+    trackUserEvent({
+      actionType: "READ_ARTICLE",
+      sourceId,
+      articleTitle: article.title,
+      articleUrl: article.link,
+      articleSlug: article.id
+    });
+  }, [article.id, article.title, article.link]);
 
   const handleBack = () => {
     if (window.history.length > 2) {

@@ -41,6 +41,7 @@ import { ActiveSourceFilter } from "@/types/news";
 import { getAuthSession, isAdminUser } from "@/lib/auth";
 import { getLocalSiteSettings, fetchRemoteSiteSettings, DEFAULT_SITE_SETTINGS, SiteSettings } from "@/lib/siteSettings";
 import { User } from "@/types/auth";
+import { trackUserEvent } from "@/lib/trackerClient";
 
 interface NewsDashboardProps {
   initialArticles: NewsItem[];
@@ -156,6 +157,11 @@ export function NewsDashboard({
   // Switch between Newspaper sources: "all" (directory) and 9 publication sources
   const handleSelectSource = async (source: ActiveSourceFilter, updateUrl: boolean = true) => {
     setActiveSource(source);
+    trackUserEvent({
+      actionType: source === "all" ? "PAGE_VIEW" : "VIEW_SOURCE",
+      sourceId: source === "all" ? null : source
+    });
+
     if (updateUrl && typeof window !== "undefined") {
       const newPath = source === "all" ? "/" : `/${source}`;
       if (window.location.pathname !== newPath) {
@@ -209,6 +215,12 @@ export function NewsDashboard({
   // Change RSS channel within selected newspaper
   const handleSelectChannel = async (channelId: string) => {
     setActiveChannel(channelId);
+    trackUserEvent({
+      actionType: "VIEW_CHANNEL",
+      sourceId: activeSource === "all" ? "vnexpress" : activeSource,
+      channelId
+    });
+
     setIsLoadingArticles(true);
     const sourceParam = activeSource === "all" ? "vnexpress" : activeSource;
     try {

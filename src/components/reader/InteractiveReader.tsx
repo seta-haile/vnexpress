@@ -36,6 +36,7 @@ import { cleanWord, CURATED_VOCAB, detectCEFRLevel } from "@/lib/dictionary";
 import { getArticleSlug } from "@/lib/rss";
 import { isWordSaved, saveWord, detectSourceId, ReaderSettings, getReaderSettings, saveReaderSettings, getAppSettings } from "@/lib/storage";
 import { getEnglishVoices, findBestVoiceForPreset, VOICE_PRESETS, VoicePreset, playNeuralAudio, stopNeuralAudio, pauseNeuralAudio, resumeNeuralAudio } from "@/lib/voice";
+import { trackUserEvent } from "@/lib/trackerClient";
 import confetti from "canvas-confetti";
 
 interface InteractiveReaderProps {
@@ -184,6 +185,19 @@ export function InteractiveReader({
     setSelectedContext(contextSentence);
     setIsLoadingWord(true);
     setWordDef(null); // Clear previous
+
+    const detectedCefr = detectCEFRLevel(trimmed);
+    const sourceId = (article as any).sourceId || detectSourceId(article.id, article.link);
+    trackUserEvent({
+      actionType: "LOOKUP_WORD",
+      sourceId,
+      articleTitle: article.title,
+      articleUrl: article.link,
+      metadata: {
+        word: trimmed,
+        cefrLevel: detectedCefr
+      }
+    });
 
     try {
       const res = await fetch(`/api/translate?word=${encodeURIComponent(trimmed)}`);

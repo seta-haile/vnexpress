@@ -67,8 +67,22 @@ import {
   fetchRemoteSiteSettings 
 } from "@/lib/siteSettings";
 import { User } from "@/types/auth";
+import { AnalyticsSummary, UserActivityLog, ActivityActionType } from "@/types/analytics";
+import { 
+  Activity, 
+  TrendingUp, 
+  History, 
+  ArrowRight, 
+  RefreshCw, 
+  Smartphone, 
+  Monitor, 
+  BookMarked, 
+  FileText, 
+  CheckCheck,
+  PieChart
+} from "lucide-react";
 
-type AdminTab = "sources" | "users" | "general" | "analytics";
+type AdminTab = "sources" | "users" | "analytics" | "general" | "system";
 
 export default function AdminSettingsPage() {
   const router = useRouter();
@@ -96,6 +110,14 @@ export default function AdminSettingsPage() {
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [userRoleFilter, setUserRoleFilter] = useState<string>("all");
   const [isDbConnected, setIsDbConnected] = useState<boolean>(false);
+
+  // Analytics & Activity Tracking State
+  const [analyticsSummary, setAnalyticsSummary] = useState<AnalyticsSummary | null>(null);
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
+  const [selectedJourneyEmail, setSelectedJourneyEmail] = useState<string>("all");
+  const [activityActionFilter, setActivityActionFilter] = useState<string>("ALL");
+  const [activitySourceFilter, setActivitySourceFilter] = useState<string>("all");
+  const [activitySearchQuery, setActivitySearchQuery] = useState<string>("");
 
   // Sources Search & Filter
   const [sourceSearchQuery, setSourceSearchQuery] = useState("");
@@ -147,6 +169,33 @@ export default function AdminSettingsPage() {
       console.error("Failed to load users:", e);
     } finally {
       setIsLoadingUsers(false);
+    }
+  };
+
+  // Fetch Analytics & Activity Logs
+  useEffect(() => {
+    if (isAdminUser(currentUser) && (activeTab === "analytics" || activeTab === "system")) {
+      fetchAnalytics();
+    }
+  }, [currentUser, activeTab, activityActionFilter, activitySourceFilter, activitySearchQuery]);
+
+  const fetchAnalytics = async () => {
+    setIsLoadingAnalytics(true);
+    try {
+      const params = new URLSearchParams();
+      if (activityActionFilter && activityActionFilter !== "ALL") params.append("actionType", activityActionFilter);
+      if (activitySourceFilter && activitySourceFilter !== "all") params.append("sourceId", activitySourceFilter);
+      if (activitySearchQuery) params.append("q", activitySearchQuery);
+
+      const res = await fetch(`/api/admin/analytics?${params.toString()}`);
+      const data = await res.json();
+      if (data.success && data.summary) {
+        setAnalyticsSummary(data.summary);
+      }
+    } catch (e) {
+      console.error("Failed to load analytics:", e);
+    } finally {
+      setIsLoadingAnalytics(false);
     }
   };
 
@@ -527,6 +576,30 @@ export default function AdminSettingsPage() {
 
             <button
               onClick={() => {
+                setActiveTab("analytics");
+                setIsMobileMenuOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                activeTab === "analytics"
+                  ? "bg-rose-600 text-white shadow-md shadow-rose-600/25"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Activity className="w-4 h-4" />
+                <span>Nhật Ký & Thống Kê Đọc</span>
+              </div>
+              {analyticsSummary?.totalEvents ? (
+                <Badge className={`text-[10px] px-1.5 py-0 font-bold border-none ${
+                  activeTab === "analytics" ? "bg-white/20 text-white" : "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                }`}>
+                  {analyticsSummary.totalEvents}
+                </Badge>
+              ) : null}
+            </button>
+
+            <button
+              onClick={() => {
                 setActiveTab("general");
                 setIsMobileMenuOpen(false);
               }}
@@ -544,11 +617,11 @@ export default function AdminSettingsPage() {
 
             <button
               onClick={() => {
-                setActiveTab("analytics");
+                setActiveTab("system");
                 setIsMobileMenuOpen(false);
               }}
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                activeTab === "analytics"
+                activeTab === "system"
                   ? "bg-rose-600 text-white shadow-md shadow-rose-600/25"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
               }`}
@@ -638,8 +711,9 @@ export default function AdminSettingsPage() {
             <span className="font-extrabold text-sm text-foreground">
               {activeTab === "sources" && "Nguồn Báo Hiển Thị"}
               {activeTab === "users" && "Thành Viên & Người Dùng"}
+              {activeTab === "analytics" && "Nhật Ký & Thống Kê"}
               {activeTab === "general" && "Cài Đặt Chung"}
-              {activeTab === "analytics" && "Giám Sát Hệ Thống"}
+              {activeTab === "system" && "Giám Sát Hệ Thống"}
             </span>
           </div>
 
@@ -1199,9 +1273,428 @@ export default function AdminSettingsPage() {
           )}
 
           {/* ========================================================================= */}
-          {/* TAB 4: GIÁM SÁT HỆ THỐNG (ANALYTICS & SYSTEM HEALTH TAB) */}
+          {/* TAB 3: THỐNG KÊ & NHẬT KÝ ĐỘC GIẢ (ANALYTICS & AUDIT LOG TAB) */}
           {/* ========================================================================= */}
           {activeTab === "analytics" && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              {/* Header Info */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-br from-card via-card to-muted/30 p-6 rounded-3xl border border-border/80 shadow-sm">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold text-xs mb-2">
+                    <Activity className="w-3.5 h-3.5" />
+                    <span>NHẬT KÝ & KHẢO SÁT HÀNH TRÌNH ĐỌC</span>
+                  </div>
+                  <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
+                    Thống Kê Hành Vi & Khảo Sát Độc Giả
+                  </h1>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Theo dõi chi tiết độc giả đã đọc những báo nào, bài viết nào, tra từ vựng và luyện tập những gì
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={fetchAnalytics}
+                    disabled={isLoadingAnalytics}
+                    variant="outline"
+                    size="sm"
+                    className="h-9 px-3.5 rounded-xl text-xs font-bold border-border/80 flex items-center gap-1.5 hover:bg-muted"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingAnalytics ? "animate-spin text-rose-600" : ""}`} />
+                    <span>Làm mới</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Metric Cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div className="p-4 sm:p-5 rounded-2xl bg-card border border-border/80 shadow-sm space-y-1">
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span className="text-xs font-bold uppercase tracking-wider">Tổng Tương Tác</span>
+                    <Activity className="w-4 h-4 text-blue-500" />
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-foreground">
+                    {analyticsSummary?.totalEvents ?? 0}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Lượt ghi nhận toàn hệ thống</p>
+                </div>
+
+                <div className="p-4 sm:p-5 rounded-2xl bg-card border border-border/80 shadow-sm space-y-1">
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span className="text-xs font-bold uppercase tracking-wider">Lượt Đọc Bài</span>
+                    <BookOpen className="w-4 h-4 text-rose-500" />
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-foreground">
+                    {analyticsSummary?.totalReads ?? 0}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Bài báo đã được mở đọc</p>
+                </div>
+
+                <div className="p-4 sm:p-5 rounded-2xl bg-card border border-border/80 shadow-sm space-y-1">
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span className="text-xs font-bold uppercase tracking-wider">Từ Vựng Đã Tra</span>
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-foreground">
+                    {analyticsSummary?.totalLookups ?? 0}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Lượt tra cứu từ điển 1-click</p>
+                </div>
+
+                <div className="p-4 sm:p-5 rounded-2xl bg-card border border-border/80 shadow-sm space-y-1">
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span className="text-xs font-bold uppercase tracking-wider">Độc Giả Hoạt Động</span>
+                    <Users className="w-4 h-4 text-emerald-500" />
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-foreground">
+                    {analyticsSummary?.uniqueUsersCount ?? 0}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Tài khoản & Khách tương tác</p>
+                </div>
+              </div>
+
+              {/* USER JOURNEY INSPECTOR SECTION */}
+              <div className="bg-card rounded-3xl border border-border/80 p-5 sm:p-7 shadow-sm space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/60">
+                  <div>
+                    <h2 className="text-base sm:text-lg font-black text-foreground flex items-center gap-2">
+                      <History className="w-4 h-4 text-rose-600" />
+                      <span>Khảo Sát Hành Trình Chi Tiết Từng Độc Giả</span>
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Xem độc giả A đã vào báo nào, đọc bài nào, tra từ gì theo trình tự thời gian
+                    </p>
+                  </div>
+
+                  {/* User Selector */}
+                  <div className="flex items-center gap-2 min-w-[240px]">
+                    <select
+                      value={selectedJourneyEmail}
+                      onChange={(e) => setSelectedJourneyEmail(e.target.value)}
+                      className="w-full text-xs font-bold px-3 py-2 rounded-xl border border-border bg-muted/40 focus:bg-background focus:outline-none focus:ring-2 focus:ring-rose-500/30 cursor-pointer"
+                    >
+                      <option value="all">-- Chọn độc giả để khảo sát ({analyticsSummary?.userJourneys.length || 0}) --</option>
+                      {analyticsSummary?.userJourneys.map((u) => (
+                        <option key={u.userEmail} value={u.userEmail}>
+                          {u.userName} ({u.userEmail}) • {u.eventCount} hoạt động
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* User Timeline Content */}
+                {(() => {
+                  const journeys = analyticsSummary?.userJourneys || [];
+                  const activeJourney = selectedJourneyEmail === "all"
+                    ? journeys[0]
+                    : journeys.find((j) => j.userEmail === selectedJourneyEmail);
+
+                  if (!activeJourney) {
+                    return (
+                      <div className="text-center py-10 text-muted-foreground text-xs">
+                        Chưa có dữ liệu hành trình độc giả nào được ghi nhận.
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-4">
+                      {/* Active User Header Banner */}
+                      <div className="p-4 rounded-2xl bg-muted/40 border border-border/60 flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-rose-500 to-amber-500 text-white font-black flex items-center justify-center text-sm shadow-sm">
+                            {activeJourney.userName.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="font-extrabold text-sm text-foreground flex items-center gap-2">
+                              <span>{activeJourney.userName}</span>
+                              <Badge variant="outline" className="text-[10px] font-semibold">
+                                {activeJourney.userEmail}
+                              </Badge>
+                            </div>
+                            <div className="text-[11px] text-muted-foreground mt-0.5">
+                              Tổng cộng: <strong className="text-foreground">{activeJourney.eventCount}</strong> hoạt động • Báo yêu thích: <span className="font-bold text-rose-600 uppercase">{activeJourney.topSource || "Đa nguồn"}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-[10px] text-muted-foreground block">Hoạt động gần nhất</span>
+                          <span className="text-xs font-bold text-foreground">
+                            {new Date(activeJourney.lastActive).toLocaleString("vi-VN")}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Timeline Events List */}
+                      <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
+                        {activeJourney.events.map((evt, idx) => {
+                          const actionBadgeConfig: Record<string, { label: string; color: string }> = {
+                            READ_ARTICLE: { label: "Đọc bài báo", color: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/50" },
+                            LOOKUP_WORD: { label: "Tra từ vựng", color: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900/50" },
+                            VIEW_SOURCE: { label: "Xem nguồn báo", color: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900/50" },
+                            VIEW_CHANNEL: { label: "Xem chuyên mục", color: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-900/50" },
+                            PRACTICE_DICTATION: { label: "Luyện Dictation", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50" },
+                            PRACTICE_QUIZ: { label: "Làm bài Quiz", color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-900/50" },
+                            PAGE_VIEW: { label: "Vào trang", color: "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-200" }
+                          };
+                          const conf = actionBadgeConfig[evt.actionType] || { label: evt.actionType, color: "bg-muted text-muted-foreground border-border" };
+
+                          return (
+                            <div key={evt.id || idx} className="p-3 rounded-xl bg-card border border-border/70 hover:border-rose-500/40 transition-all flex items-start gap-3 text-xs">
+                              {/* Time marker */}
+                              <div className="w-16 flex-shrink-0 text-[11px] font-mono text-muted-foreground pt-0.5">
+                                {new Date(evt.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                              </div>
+
+                              {/* Action Badge */}
+                              <Badge className={`text-[10px] px-2 py-0.5 font-bold border ${conf.color} flex-shrink-0`}>
+                                {conf.label}
+                              </Badge>
+
+                              {/* Event Details */}
+                              <div className="flex-1 min-w-0">
+                                {evt.sourceId && (
+                                  <span className="font-extrabold text-foreground uppercase mr-1.5 text-[10px] px-1.5 py-0.5 rounded bg-muted">
+                                    {evt.sourceId}
+                                  </span>
+                                )}
+                                {evt.articleTitle && (
+                                  <span className="font-semibold text-foreground">
+                                    {evt.articleTitle}
+                                  </span>
+                                )}
+                                {evt.metadata?.word && (
+                                  <span className="inline-flex items-center gap-1 ml-1 text-amber-700 dark:text-amber-400 font-black">
+                                    <span>&ldquo;{evt.metadata.word}&rdquo;</span>
+                                    {evt.metadata.cefrLevel && (
+                                      <span className="text-[9px] px-1 rounded bg-amber-500/20">{evt.metadata.cefrLevel}</span>
+                                    )}
+                                  </span>
+                                )}
+                                {evt.channelId && !evt.articleTitle && (
+                                  <span className="text-muted-foreground">
+                                    Chuyên mục: <strong className="text-foreground">{evt.channelId}</strong>
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Direct Article Link */}
+                              {evt.articleSlug && (
+                                <Link
+                                  href={`/article/${evt.articleSlug}`}
+                                  target="_blank"
+                                  className="text-[11px] text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-0.5 flex-shrink-0"
+                                >
+                                  <span>Xem bài</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </Link>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* TOP SOURCES & TOP ARTICLES RANKINGS */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {/* Top Sources Bar Chart */}
+                <div className="p-6 rounded-3xl bg-card border border-border/80 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-black text-sm text-foreground flex items-center gap-2">
+                      <PieChart className="w-4 h-4 text-blue-500" />
+                      <span>Nguồn Báo Được Đọc Nhiều Nhất</span>
+                    </h3>
+                    <span className="text-[11px] text-muted-foreground">Tỉ lệ đọc</span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {analyticsSummary?.topSources && analyticsSummary.topSources.length > 0 ? (
+                      analyticsSummary.topSources.map((src) => {
+                        const pub = PUBLICATION_SOURCES.find((p) => p.id === src.sourceId);
+                        return (
+                          <div key={src.sourceId} className="space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-bold text-foreground">
+                                {pub?.shortName || src.sourceId}
+                              </span>
+                              <span className="font-mono text-muted-foreground">
+                                {src.count} lượt ({src.percentage}%)
+                              </span>
+                            </div>
+                            <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-rose-500 to-amber-500 rounded-full transition-all duration-500"
+                                style={{ width: `${src.percentage}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-center py-6 text-xs text-muted-foreground">
+                        Chưa có dữ liệu nguồn báo
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Top Articles Leaderboard */}
+                <div className="p-6 rounded-3xl bg-card border border-border/80 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-black text-sm text-foreground flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-rose-500" />
+                      <span>Top Bài Báo Quan Tâm Nhiều Nhất</span>
+                    </h3>
+                    <span className="text-[11px] text-muted-foreground">Lượt đọc</span>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {analyticsSummary?.topArticles && analyticsSummary.topArticles.length > 0 ? (
+                      analyticsSummary.topArticles.map((art, idx) => (
+                        <div key={art.title} className="p-2.5 rounded-xl bg-muted/30 border border-border/50 flex items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="w-5 h-5 rounded-full bg-rose-500/10 text-rose-600 font-black text-[11px] flex items-center justify-center flex-shrink-0">
+                              {idx + 1}
+                            </span>
+                            <span className="font-semibold text-foreground truncate" title={art.title}>
+                              {art.title}
+                            </span>
+                          </div>
+                          <Badge variant="outline" className="font-mono text-[10px] flex-shrink-0">
+                            {art.readCount} reads
+                          </Badge>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-6 text-xs text-muted-foreground">
+                        Chưa có dữ liệu bài viết
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* REAL-TIME LIVE ACTIVITY STREAM (AUDIT LOG TABLE) */}
+              <div className="bg-card rounded-3xl border border-border/80 p-5 sm:p-7 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-black text-base text-foreground flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-emerald-500" />
+                      <span>Nhật Ký Tương Tác Thời Gian Thực (Live Audit Log)</span>
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Toàn bộ hoạt động vừa diễn ra trên website
+                    </p>
+                  </div>
+
+                  {/* Quick Filters */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={activityActionFilter}
+                      onChange={(e) => setActivityActionFilter(e.target.value)}
+                      className="text-xs font-bold px-2.5 py-1.5 rounded-xl border border-border bg-muted/40 focus:bg-background cursor-pointer"
+                    >
+                      <option value="ALL">Tất cả hành động</option>
+                      <option value="READ_ARTICLE">Đọc bài báo</option>
+                      <option value="LOOKUP_WORD">Tra từ vựng</option>
+                      <option value="VIEW_SOURCE">Xem nguồn báo</option>
+                      <option value="PRACTICE_DICTATION">Luyện Dictation</option>
+                      <option value="PRACTICE_QUIZ">Làm Quiz</option>
+                    </select>
+
+                    <select
+                      value={activitySourceFilter}
+                      onChange={(e) => setActivitySourceFilter(e.target.value)}
+                      className="text-xs font-bold px-2.5 py-1.5 rounded-xl border border-border bg-muted/40 focus:bg-background cursor-pointer"
+                    >
+                      <option value="all">Tất cả nguồn báo</option>
+                      {ALL_PUBLICATION_SOURCE_IDS.map((s) => (
+                        <option key={s} value={s}>{s.toUpperCase()}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Search in log */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Tìm kiếm theo email độc giả, tên bài báo, từ vựng..."
+                    value={activitySearchQuery}
+                    onChange={(e) => setActivitySearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 rounded-xl text-xs bg-muted/30 border border-border/80 focus:bg-background focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                  />
+                </div>
+
+                {/* Audit Log Table */}
+                <div className="border border-border/80 rounded-2xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-muted/60 text-muted-foreground font-bold border-b border-border/80">
+                        <tr>
+                          <th className="py-2.5 px-4">Thời Gian</th>
+                          <th className="py-2.5 px-4">Độc Giả</th>
+                          <th className="py-2.5 px-4">Hành Động</th>
+                          <th className="py-2.5 px-4">Chi Tiết / Bài Báo</th>
+                          <th className="py-2.5 px-4">Thiết Bị</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60">
+                        {analyticsSummary?.recentActivities && analyticsSummary.recentActivities.length > 0 ? (
+                          analyticsSummary.recentActivities.map((log, idx) => (
+                            <tr key={log.id || idx} className="hover:bg-muted/30 transition-colors">
+                              <td className="py-2.5 px-4 font-mono text-[11px] text-muted-foreground whitespace-nowrap">
+                                {new Date(log.createdAt).toLocaleString("vi-VN")}
+                              </td>
+                              <td className="py-2.5 px-4 font-medium text-foreground whitespace-nowrap">
+                                <div>{log.userName || "Khách"}</div>
+                                <div className="text-[10px] text-muted-foreground">{log.userEmail}</div>
+                              </td>
+                              <td className="py-2.5 px-4 whitespace-nowrap">
+                                <Badge variant="outline" className="text-[10px] font-bold">
+                                  {log.actionType}
+                                </Badge>
+                              </td>
+                              <td className="py-2.5 px-4">
+                                {log.sourceId && (
+                                  <span className="font-extrabold uppercase text-[10px] mr-1.5 px-1.5 py-0.5 rounded bg-muted">
+                                    {log.sourceId}
+                                  </span>
+                                )}
+                                <span className="font-semibold text-foreground">
+                                  {log.articleTitle || log.metadata?.word || log.channelId || "-"}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-4 text-[11px] text-muted-foreground whitespace-nowrap">
+                                {log.deviceInfo || "Web"}
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={5} className="py-8 text-center text-xs text-muted-foreground">
+                              Không tìm thấy hoạt động nào phù hợp với bộ lọc
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* TAB 5: GIÁM SÁT HỆ THỐNG (SYSTEM HEALTH TAB) */}
+          {/* ========================================================================= */}
+          {activeTab === "system" && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="bg-card rounded-3xl border border-border/80 p-6 sm:p-8 space-y-6 shadow-sm">
                 <div>
