@@ -3,7 +3,19 @@ import { getDbPool } from "./db";
 import fs from "fs";
 import path from "path";
 
-const FALLBACK_FILE_PATH = path.join("/tmp", "vne_site_settings.json");
+const BACKUP_SETTINGS_FILE = path.join(process.cwd(), "data", "site_settings_backup.json");
+const TMP_SETTINGS_FILE = path.join("/tmp", "vne_site_settings.json");
+
+function ensureDataDir() {
+  try {
+    const dataDir = path.join(process.cwd(), "data");
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+  } catch (err) {
+    console.warn("Failed to ensure data directory for settings:", err);
+  }
+}
 
 // In-memory cache for fast response
 let inMemorySettings: SiteSettings | null = null;
@@ -23,29 +35,31 @@ export async function getGlobalSiteSettings(): Promise<SiteSettings> {
       const res = await pool.query(`SELECT value FROM site_settings WHERE key = 'global' LIMIT 1;`);
       if (res.rows.length > 0 && res.rows[0].value) {
         const val = res.rows[0].value as Partial<SiteSettings>;
-        inMemorySettings = {
+        const dbSettings: SiteSettings = {
           ...DEFAULT_SITE_SETTINGS,
           ...val,
           enabledSources: Array.isArray(val.enabledSources) && val.enabledSources.length > 0
             ? val.enabledSources
             : DEFAULT_SITE_SETTINGS.enabledSources
         };
-        return inMemorySettings;
+        inMemorySettings = dbSettings;
+        return dbSettings;
       }
     } catch (err) {
       console.warn("DB getGlobalSiteSettings error:", err);
     }
   }
 
-  // 2. Try in-memory cache
-  if (inMemorySettings) {
-    return inMemorySettings;
-  }
-
-  // 3. Try fallback file
+  // 2. Try file backup in data/ or /tmp
   try {
-    if (fs.existsSync(FALLBACK_FILE_PATH)) {
-      const raw = fs.readFileSync(FALLBACK_FILE_PATH, "utf-8");
+    const targetFile = fs.existsSync(BACKUP_SETTINGS_FILE) 
+      ? BACKUP_SETTINGS_FILE 
+      : fs.existsSync(TMP_SETTINGS_FILE) 
+      ? TMP_SETTINGS_FILE 
+      : null;
+
+    if (targetFile) {
+      const raw = fs.readFileSync(targetFile, "utf-8");
       const parsed = JSON.parse(raw);
       const fileSettings: SiteSettings = {
         ...DEFAULT_SITE_SETTINGS,
@@ -58,7 +72,12 @@ export async function getGlobalSiteSettings(): Promise<SiteSettings> {
       return fileSettings;
     }
   } catch (e) {
-    // ignore
+    console.warn("Failed to read backup settings file:", e);
+  }
+
+  // 3. Try in-memory cache
+  if (inMemorySettings) {
+    return inMemorySettings;
   }
 
   return DEFAULT_SITE_SETTINGS;
@@ -67,16 +86,22 @@ export async function getGlobalSiteSettings(): Promise<SiteSettings> {
 export async function saveGlobalSiteSettings(settings: SiteSettings): Promise<boolean> {
   inMemorySettings = settings;
 
-  // Save to file fallback
+  // 1. Save to backup files
   try {
-    fs.writeFileSync(FALLBACK_FILE_PATH, JSON.stringify(settings), "utf-8");
+    ensureDataDir();
+    fs.writeFileSync(BACKUP_SETTINGS_FILE, JSON.stringify(settings, null, 2), "utf-8");
   } catch (e) {
-    // Ignore filesystem error
+    // ignore
+  }
+  try {
+    fs.writeFileSync(TMP_SETTINGS_FILE, JSON.stringify(settings), "utf-8");
+  } catch (e) {
+    // ignore
   }
 
-  // Save to DB
+  // 2. Save to DB
   const pool = getDbPool();
-  if (!pool) return false;
+  if (!pool) return true;
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS site_settings (

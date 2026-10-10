@@ -795,8 +795,8 @@ export default function AdminSettingsPage() {
                           )}
                         </span>
 
-                        <span className="text-[10px] text-muted-foreground">
-                          Admin: Luôn xem được
+                        <span className="text-[10px] text-muted-foreground font-medium">
+                          {isEnabled ? "Đang bật trên Web" : "Đã tắt hoàn toàn"}
                         </span>
                       </div>
                     </div>

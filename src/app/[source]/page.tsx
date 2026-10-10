@@ -48,11 +48,16 @@ export default async function SourcePage({ params }: SourcePageProps) {
   else if (source === "gutenberg") defaultChannel = "gutenberg-all";
   else if (source === "globalvoices") defaultChannel = "globalvoices-all";
 
-  const [articles, { combined }, initialSiteSettings] = await Promise.all([
-    fetchRssFeed(defaultChannel, sourceId),
-    fetchAllSourcesLatest(),
-    getGlobalSiteSettings()
+  const [initialSiteSettings, { combined }] = await Promise.all([
+    getGlobalSiteSettings(),
+    fetchAllSourcesLatest()
   ]);
+
+  if (!initialSiteSettings.enabledSources.includes(sourceId)) {
+    notFound();
+  }
+
+  const articles = await fetchRssFeed(defaultChannel, sourceId);
 
   return (
     <NewsDashboard

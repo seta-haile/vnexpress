@@ -29,7 +29,6 @@ export const ALL_PUBLICATION_SOURCE_IDS: PublicationSourceId[] = [
 ];
 
 export const CURATED_ACTIVE_SOURCE_IDS: PublicationSourceId[] = [
-  "vnexpress",
   "bbc",
   "guardian",
   "theconversation",

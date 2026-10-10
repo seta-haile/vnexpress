@@ -95,18 +95,19 @@ export function NewsDashboard({
     applyTheme(loadedSettings.theme);
 
     setCurrentUser(getAuthSession().user);
-    if (!initialSiteSettings) {
-      setSiteSettings(getLocalSiteSettings());
-    }
+    const local = getLocalSiteSettings();
+    if (local) setSiteSettings(local);
 
     // Always fetch latest settings directly from PostgreSQL / server
     fetchRemoteSiteSettings().then((remote) => {
-      setSiteSettings(remote);
+      if (remote) setSiteSettings(remote);
     });
 
     const handleAuth = () => {
       setCurrentUser(getAuthSession().user);
-      fetchRemoteSiteSettings().then((remote) => setSiteSettings(remote));
+      fetchRemoteSiteSettings().then((remote) => {
+        if (remote) setSiteSettings(remote);
+      });
     };
     const handleSiteSettings = (e: any) => {
       setSiteSettings(e.detail || getLocalSiteSettings());
@@ -122,12 +123,12 @@ export function NewsDashboard({
 
   const isUserAdmin = isAdminUser(currentUser);
 
-  // If regular user visits a disabled source, auto fallback to 'all'
+  // If active source is disabled in siteSettings, auto fallback to 'all'
   useEffect(() => {
-    if (!isUserAdmin && activeSource !== "all" && !siteSettings.enabledSources.includes(activeSource)) {
+    if (activeSource !== "all" && !siteSettings.enabledSources.includes(activeSource)) {
       setActiveSource("all");
     }
-  }, [siteSettings.enabledSources, isUserAdmin, activeSource]);
+  }, [siteSettings.enabledSources, activeSource]);
 
   const applyTheme = (theme: "light" | "dark") => {
     if (typeof document !== "undefined") {
@@ -316,11 +317,9 @@ export function NewsDashboard({
             onSelectSource={handleSelectSource}
             searchQuery={searchQuery}
             latestArticles={
-              isUserAdmin
-                ? (allLatestArticles.length > 0 ? allLatestArticles : articles)
-                : (allLatestArticles.length > 0 ? allLatestArticles : articles).filter(
-                    (a) => !a.sourceId || siteSettings.enabledSources.includes(a.sourceId as any)
-                  )
+              (allLatestArticles.length > 0 ? allLatestArticles : articles).filter(
+                (a) => !a.sourceId || siteSettings.enabledSources.includes(a.sourceId as any)
+              )
             }
             isArticleRead={(id) => userStats.readArticleIds.includes(id)}
             settings={siteSettings}

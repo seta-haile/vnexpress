@@ -57,9 +57,8 @@ export function PublicationsDirectory({
 
   useEffect(() => {
     setCurrentUser(getAuthSession().user);
-    if (!initialSettings) {
-      setSettings(getLocalSiteSettings());
-    }
+    const local = getLocalSiteSettings();
+    if (local) setSettings(local);
 
     // Always fetch latest settings from server to ensure accuracy
     fetchRemoteSiteSettings().then((remote) => {
@@ -81,9 +80,9 @@ export function PublicationsDirectory({
   }, []);
 
   const isUserAdmin = isAdminUser(currentUser);
-  const displaySources = isUserAdmin 
-    ? PUBLICATION_SOURCES 
-    : PUBLICATION_SOURCES.filter((s) => settings.enabledSources.includes(s.id));
+  const displaySources = PUBLICATION_SOURCES.filter((s) =>
+    settings.enabledSources.includes(s.id)
+  );
 
   const cleanQuery = (searchQuery || "").toLowerCase().trim();
 
@@ -133,7 +132,7 @@ export function PublicationsDirectory({
             <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-background/80 backdrop-blur-sm border border-border/60">
               <span className="text-[10px] sm:text-[11px] text-muted-foreground font-medium block">Nguồn báo</span>
               <span className="text-base sm:text-lg font-black text-foreground">
-                {displaySources.length} Nguồn {isUserAdmin ? "(Admin)" : "chọn lọc"}
+                {displaySources.length} Nguồn chọn lọc
               </span>
             </div>
             <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-background/80 backdrop-blur-sm border border-border/60">
@@ -156,8 +155,102 @@ export function PublicationsDirectory({
         <div className="absolute right-32 bottom-0 translate-y-16 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
       </div>
 
+      {/* Publications Showcase Cards Grid */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-foreground flex items-center gap-2">
+              <Newspaper className="w-5 h-5 text-rose-600" />
+              <span>Nguồn báo đang hoạt động</span>
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Chọn tờ báo bạn muốn khám phá và bắt đầu buổi học
+            </p>
+          </div>
+          <Badge variant="outline" className="font-semibold text-xs border-border">
+            {displaySources.length} Báo đang mở
+          </Badge>
+        </div>
+
+        {filteredSources.length === 0 ? (
+          <div className="text-center py-10 text-muted-foreground text-xs">
+            Không có nguồn báo nào khớp với tìm kiếm & cài đặt.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filteredSources.map((source) => {
+              return (
+                <div
+                  key={source.id}
+                  className="group relative rounded-3xl border border-border/80 bg-card hover:bg-card/95 transition-all duration-300 hover:shadow-xl hover:shadow-black/5 hover:-translate-y-1 overflow-hidden flex flex-col justify-between"
+                >
+                  {/* Top Image Banner */}
+                  <div className="relative h-36 w-full overflow-hidden bg-muted">
+                    <Image
+                      src={source.coverImage}
+                      alt={source.name}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-card via-card/40 to-transparent" />
+                    
+                    {/* Source Badge */}
+                    <div className="absolute top-3 left-3 flex items-center gap-2">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold shadow-sm backdrop-blur-md ${source.badgeColor}`}>
+                        {source.badge}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-black/60 text-white backdrop-blur-md">
+                        CEFR {source.cefrRange}
+                      </span>
+                    </div>
+
+                    {/* Logo Indicator */}
+                    <div className="absolute bottom-3 left-3 flex items-center gap-2.5">
+                      <div className={`w-10 h-10 rounded-2xl bg-gradient-to-tr ${source.gradient} flex items-center justify-center text-white font-black text-xs shadow-lg`}>
+                        {source.logoText}
+                      </div>
+                      <div>
+                        <h3 className="text-base font-black text-foreground drop-shadow-sm line-clamp-1">
+                          {source.name}
+                        </h3>
+                        <p className="text-[10px] text-muted-foreground">
+                          {source.channels.length} chuyên mục
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card Body */}
+                  <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <p className="text-xs text-foreground/85 font-medium leading-relaxed line-clamp-2">
+                        {source.tagline}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
+                        {source.description}
+                      </p>
+                    </div>
+
+                    {/* Action Button */}
+                    <div className="pt-2">
+                      <Button
+                        onClick={() => onSelectSource(source.id as any)}
+                        className="w-full py-2 rounded-2xl font-bold text-xs shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/25"
+                      >
+                        <span>Vào đọc {source.shortName}</span>
+                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Unified Feed: Latest Stories from All Publications */}
-      <div className="space-y-4 pt-2">
+      <div className="space-y-4 pt-4 border-t border-border/60">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-xl sm:text-2xl font-black tracking-tight text-foreground flex items-center gap-2">

@@ -1,0 +1,21 @@
+{
+  "enabledSources": [
+    "vnexpress",
+    "bbc",
+    "guardian",
+    "theconversation",
+    "propublica",
+    "wikinews",
+    "npr",
+    "globalvoices"
+  ],
+  "headerSubtitle": "Đọc báo & học tiếng Anh đa nguồn thông minh",
+  "defaultSource": "all",
+  "defaultCefrLevel": "all",
+  "showThumbnails": true,
+  "articlesPerPage": 24,
+  "autoPlayAudioKaraoke": false,
+  "allowUserSourceCustomization": true,
+  "updatedAt": "2026-10-10T09:25:20.039Z",
+  "updatedBy": "Lee Hair"
+}

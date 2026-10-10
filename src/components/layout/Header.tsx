@@ -66,16 +66,16 @@ export function Header({
   searchQuery,
   onSearchChange,
   onOpenSettings,
-  siteSettings: initialSettings,
+  siteSettings: parentSiteSettings,
   currentUser: initialUser
 }: HeaderProps) {
   const [showSearch, setShowSearch] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(initialUser !== undefined ? initialUser : null);
-  const [siteSettings, setSiteSettings] = useState<SiteSettings>(initialSettings || DEFAULT_SITE_SETTINGS);
+  const [activeSettings, setActiveSettings] = useState<SiteSettings>(parentSiteSettings || DEFAULT_SITE_SETTINGS);
 
   useEffect(() => {
-    if (initialSettings) setSiteSettings(initialSettings);
-  }, [initialSettings]);
+    if (parentSiteSettings) setActiveSettings(parentSiteSettings);
+  }, [parentSiteSettings]);
 
   useEffect(() => {
     if (initialUser !== undefined) setCurrentUser(initialUser);
@@ -83,21 +83,22 @@ export function Header({
 
   useEffect(() => {
     setCurrentUser(getAuthSession().user);
-    if (!initialSettings) {
-      setSiteSettings(getLocalSiteSettings());
-    }
+    const local = getLocalSiteSettings();
+    if (local) setActiveSettings(local);
 
-    // Always fetch latest settings from server to ensure accuracy
+    // Always fetch latest settings from server DB to ensure accuracy
     fetchRemoteSiteSettings().then((remote) => {
-      setSiteSettings(remote);
+      if (remote) setActiveSettings(remote);
     });
 
     const handleAuth = () => {
       setCurrentUser(getAuthSession().user);
-      fetchRemoteSiteSettings().then((remote) => setSiteSettings(remote));
+      fetchRemoteSiteSettings().then((remote) => {
+        if (remote) setActiveSettings(remote);
+      });
     };
     const handleSettings = (e: any) => {
-      setSiteSettings(e.detail || getLocalSiteSettings());
+      setActiveSettings(e.detail || getLocalSiteSettings());
     };
 
     window.addEventListener("auth-changed", handleAuth);
@@ -109,9 +110,9 @@ export function Header({
   }, []);
 
   const isUserAdmin = isAdminUser(currentUser);
-  const visiblePublications = isUserAdmin
-    ? PUBLICATION_SOURCES
-    : PUBLICATION_SOURCES.filter((p) => siteSettings.enabledSources.includes(p.id));
+  const visiblePublications = PUBLICATION_SOURCES.filter((p) =>
+    activeSettings.enabledSources.includes(p.id)
+  );
 
   const currentPub = PUBLICATION_SOURCES.find((p) => p.id === activeSource);
   const currentChannels = currentPub?.channels || [];
@@ -137,11 +138,11 @@ export function Header({
                     VnE Reader
                   </span>
                   <Badge variant="secondary" className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0 font-bold tracking-wide bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 border-rose-200 dark:border-rose-800">
-                    {isUserAdmin ? "10 NGUỒN (ADMIN)" : `${visiblePublications.length} NGUỒN`}
+                    {visiblePublications.length} NGUỒN
                   </Badge>
                 </div>
                 <span className="text-[10px] sm:text-[11px] text-muted-foreground hidden md:inline-block font-medium">
-                  {siteSettings.headerSubtitle || "Đọc báo & học tiếng Anh đa nguồn thông minh"}
+                  {activeSettings.headerSubtitle || "Đọc báo & học tiếng Anh đa nguồn thông minh"}
                 </span>
               </div>
             </Link>

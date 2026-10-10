@@ -88,6 +88,7 @@ export async function loginWithRealGoogle(
               avatar: profile.picture,
               provider: "google",
               providerId: profile.sub,
+              role: "learner",
               createdAt: new Date().toISOString(),
               lastLoginAt: new Date().toISOString()
             };
