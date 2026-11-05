@@ -192,6 +192,7 @@ function computeWordTimeline(text: string) {
 
 let globalNeuralAudio: HTMLAudioElement | null = null;
 let activeAnimFrameId: number | null = null;
+let activeUtterance: SpeechSynthesisUtterance | null = null;
 
 export function stopNeuralAudio() {
   if (activeAnimFrameId && typeof window !== "undefined") {
@@ -201,10 +202,19 @@ export function stopNeuralAudio() {
   if (globalNeuralAudio) {
     globalNeuralAudio.pause();
     globalNeuralAudio.currentTime = 0;
+    globalNeuralAudio.src = "";
     globalNeuralAudio = null;
   }
-  if (typeof window !== "undefined" && "speechSynthesis" in window) {
-    window.speechSynthesis.cancel();
+  activeUtterance = null;
+  if (typeof window !== "undefined") {
+    try {
+      (window as any).__activeUtterance = null;
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    } catch (e) {
+      console.warn("Error cancelling speech synthesis:", e);
+    }
   }
 }
 
@@ -244,115 +254,78 @@ export async function playNeuralAudio(
 
   stopNeuralAudio();
 
-  // Convert rate multiplier (0.8 - 1.5) to percentage (-20% to +50%)
-  let rateParam = "0%";
-  if (rate !== 1.0) {
-    const pct = Math.round((rate - 1.0) * 100);
-    rateParam = pct > 0 ? `+${pct}%` : `${pct}%`;
-  }
-
-  const selectedVoice = voiceKey || preset;
-  const ttsUrl = `/api/tts?text=${encodeURIComponent(text)}&voice=${encodeURIComponent(selectedVoice)}&rate=${encodeURIComponent(rateParam)}`;
-
-  const timeline = computeWordTimeline(text);
-
-  try {
-    const audio = new Audio(ttsUrl);
-    globalNeuralAudio = audio;
-
-    const trackProgress = () => {
-      if (!audio || audio.paused || audio.ended) return;
-      const duration = audio.duration;
-      const currentTime = audio.currentTime;
-      if (duration > 0 && timeline.length > 0) {
-        const progressFrac = Math.min(0.999, Math.max(0, currentTime / duration));
-        const matched = timeline.find((t) => progressFrac >= t.startFrac && progressFrac < t.endFrac);
-        if (matched) {
-          onBoundary?.(matched.start);
-        }
-      }
-      activeAnimFrameId = requestAnimationFrame(trackProgress);
-    };
-
-    audio.onplay = () => {
-      onStart?.();
-      if (typeof window !== "undefined") {
-        activeAnimFrameId = requestAnimationFrame(trackProgress);
-      }
-    };
-
-    audio.onpause = () => {
-      if (activeAnimFrameId && typeof window !== "undefined") {
-        cancelAnimationFrame(activeAnimFrameId);
-        activeAnimFrameId = null;
-      }
-    };
-
-    audio.onended = () => {
-      if (activeAnimFrameId && typeof window !== "undefined") {
-        cancelAnimationFrame(activeAnimFrameId);
-        activeAnimFrameId = null;
-      }
-      if (globalNeuralAudio === audio) {
-        globalNeuralAudio = null;
-      }
-      onBoundary?.(-1);
-      onEnd?.();
-    };
-
-    audio.onerror = () => {
-      console.warn("Neural TTS playback failed, falling back to local speech synthesis...");
-      if (activeAnimFrameId && typeof window !== "undefined") {
-        cancelAnimationFrame(activeAnimFrameId);
-        activeAnimFrameId = null;
-      }
-      if (globalNeuralAudio === audio) {
-        globalNeuralAudio = null;
-      }
-      // Seamless fallback to browser SpeechSynthesis
-      fallbackToBrowserSpeech(text, preset, rate, onBoundary, onEnd);
-    };
-
-    await audio.play();
-    return audio;
-  } catch (err) {
-    console.warn("Audio play() interrupted or failed, using fallback:", err);
-    fallbackToBrowserSpeech(text, preset, rate, onBoundary, onEnd);
-    return null;
-  }
+  // Directly use browser native speech synthesis (Web Speech API):
+  // 100% Free, instant response, 0 serverless costs, no API limits.
+  fallbackToBrowserSpeech(text, preset, voiceKey, rate, onStart, onBoundary, onEnd, onError);
+  return null;
 }
 
 function fallbackToBrowserSpeech(
   text: string, 
   preset: VoicePreset, 
+  voiceKey?: string,
   rate = 1.0, 
+  onStart?: () => void,
   onBoundary?: (charIndex: number) => void,
-  onEnd?: () => void
+  onEnd?: () => void,
+  onError?: (err: any) => void
 ) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+    onError?.(new Error("Speech synthesis not supported in this environment"));
     onEnd?.();
     return;
   }
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "en-US";
-  utterance.rate = rate;
-  utterance.onboundary = (event) => {
-    if (event.name === "word" || !event.name || typeof event.charIndex === "number") {
-      onBoundary?.(event.charIndex);
+
+  try {
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    activeUtterance = utterance;
+    (window as any).__activeUtterance = utterance;
+
+    utterance.lang = "en-US";
+    utterance.rate = rate;
+
+    // Pick best available voice matching preset
+    const voices = window.speechSynthesis.getVoices();
+    const { voice, pitch } = findBestVoiceForPreset(voices, preset, voiceKey);
+    if (voice) {
+      utterance.voice = voice;
     }
-  };
-  if (onEnd) {
+    utterance.pitch = pitch;
+
+    utterance.onstart = () => {
+      onStart?.();
+    };
+
+    utterance.onboundary = (event) => {
+      if (event.name === "word" || !event.name || typeof event.charIndex === "number") {
+        onBoundary?.(event.charIndex);
+      }
+    };
+
     utterance.onend = () => {
+      activeUtterance = null;
+      (window as any).__activeUtterance = null;
       onBoundary?.(-1);
-      onEnd();
+      onEnd?.();
     };
-    utterance.onerror = () => {
+
+    utterance.onerror = (e) => {
+      activeUtterance = null;
+      (window as any).__activeUtterance = null;
       onBoundary?.(-1);
-      onEnd();
+      onError?.(e);
+      onEnd?.();
     };
+
+    onStart?.();
+    window.speechSynthesis.speak(utterance);
+  } catch (e) {
+    console.error("Browser speech synthesis error:", e);
+    onError?.(e);
+    onEnd?.();
   }
-  window.speechSynthesis.speak(utterance);
 }
 
 export function playVoiceSample(

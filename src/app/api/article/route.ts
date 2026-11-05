@@ -21,10 +21,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      article
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        article
+      },
+      {
+        headers: {
+          "Cache-Control": "public, max-age=3600, s-maxage=7200, stale-while-revalidate=86400"
+        }
+      }
+    );
   } catch (error: any) {
     console.error("API /api/article error:", error);
     return NextResponse.json(

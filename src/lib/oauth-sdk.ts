@@ -59,12 +59,32 @@ export async function loginWithRealGoogle(
   }
 
   return new Promise((resolve, reject) => {
+    let timeoutId: NodeJS.Timeout | null = null;
+    let isSettled = false;
+
+    const cleanup = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+
+    // Timeout an toàn 25 giây tránh bị xoay loading vô tận nếu người dùng đóng tab Google
+    timeoutId = setTimeout(() => {
+      if (!isSettled) {
+        isSettled = true;
+        reject(new Error("Đã hết thời gian chờ đăng nhập Google. Vui lòng thử lại."));
+      }
+    }, 25000);
+
     try {
       const client = window.google.accounts.oauth2.initTokenClient({
         client_id: clientId,
-        scope: "openid profile email",
+        // Chú ý: initTokenClient chỉ nhận 'email profile', KHÔNG truyền 'openid' vì sẽ gây lỗi 400 Malformed trên Android Chrome
+        scope: "email profile",
         callback: async (tokenResponse: any) => {
+          cleanup();
+          if (isSettled) return;
+
           if (tokenResponse.error) {
+            isSettled = true;
             reject(new Error(tokenResponse.error_description || tokenResponse.error));
             return;
           }
@@ -77,6 +97,7 @@ export async function loginWithRealGoogle(
             const profile = await res.json();
 
             if (!profile.email) {
+              isSettled = true;
               reject(new Error("Không thể lấy email từ tài khoản Google."));
               return;
             }
@@ -93,19 +114,26 @@ export async function loginWithRealGoogle(
               lastLoginAt: new Date().toISOString()
             };
 
+            isSettled = true;
             resolve(user);
           } catch (err) {
+            isSettled = true;
             reject(err);
           }
         },
         error_callback: (err: any) => {
-          reject(new Error(err.message || "Đăng nhập Google bị hủy hoặc gặp lỗi."));
+          cleanup();
+          if (!isSettled) {
+            isSettled = true;
+            reject(new Error(err.message || "Đăng nhập Google bị hủy hoặc gặp lỗi."));
+          }
         }
       });
 
-      // Trigger the real Google OAuth consent popup
-      client.requestAccessToken({ prompt: "consent" });
+      // Trên Mobile Android Chrome, prompt để rỗng hoặc select_account thay vì 'consent' để tránh lỗi 400
+      client.requestAccessToken({ prompt: "" });
     } catch (e) {
+      cleanup();
       reject(e);
     }
   });

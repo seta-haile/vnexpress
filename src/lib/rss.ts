@@ -1,6 +1,7 @@
 import { XMLParser } from "fast-xml-parser";
 import { RssChannel, NewsItem, PublicationSource } from "@/types/news";
 import { getClassicStoryNewsItems } from "@/lib/classicStories";
+import { fetchKidsFeed } from "@/lib/kidsContent";
 
 // 1. VnExpress International Channels
 export const RSS_CHANNELS: RssChannel[] = [
@@ -412,25 +413,25 @@ export const GLOBAL_VOICES_CHANNELS: RssChannel[] = [
     id: "globalvoices-americas",
     name: "Americas",
     vietnameseName: "Châu Mỹ",
-    url: "https://globalvoices.org/-/world/latin-america/feed/",
+    url: "https://globalvoices.org/-/world/latin-america,north-america,caribbean/feed/",
     badgeColor: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800",
-    description: "Đời sống, phong trào xã hội và văn hóa đa dạng khu vực Mỹ Latinh & Châu Mỹ."
+    description: "Đời sống, phong trào xã hội và văn hóa đa dạng khu vực Mỹ Latinh, Bắc Mỹ & Caribbean."
   },
   {
     id: "globalvoices-asia",
-    name: "Asia",
-    vietnameseName: "Châu Á",
-    url: "https://globalvoices.org/-/world/east-asia/feed/",
+    name: "Asia & Pacific",
+    vietnameseName: "Châu Á & Thái Bình Dương",
+    url: "https://globalvoices.org/-/world/east-asia,south-asia,middle-east-north-africa,central-asia-caucasus,oceania/feed/",
     badgeColor: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800",
-    description: "Tin tức, xã hội và văn hóa từ các quốc gia khu vực Châu Á."
+    description: "Tin tức, xã hội và văn hóa từ Đông Á, Nam Á, Trung Đông, Trung Á & Châu Đại Dương."
   },
   {
     id: "globalvoices-europe",
     name: "Europe",
     vietnameseName: "Châu Âu",
-    url: "https://globalvoices.org/-/world/western-europe/feed/",
+    url: "https://globalvoices.org/-/world/western-europe,eastern-central-europe/feed/",
     badgeColor: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800",
-    description: "Nhân quyền, xã hội dân sự và đời sống con người khu vực Châu Âu."
+    description: "Nhân quyền, xã hội dân sự và đời sống con người khu vực Tây Âu và Đông Âu."
   },
   {
     id: "globalvoices-elections",
@@ -442,11 +443,11 @@ export const GLOBAL_VOICES_CHANNELS: RssChannel[] = [
   },
   {
     id: "globalvoices-culture",
-    name: "Culture",
-    vietnameseName: "Văn Hóa",
-    url: "https://globalvoices.org/-/topics/arts-culture/feed/",
+    name: "Culture & Arts",
+    vietnameseName: "Văn Hóa & Nghệ Thuật",
+    url: "https://globalvoices.org/-/topics/arts-culture,history,literature,music,photography,film,humor/feed/",
     badgeColor: "bg-pink-500/10 text-pink-700 dark:text-pink-400 border-pink-200 dark:border-pink-800",
-    description: "Nghệ thuật, âm nhạc, văn học và đời sống văn hóa phong phú đa quốc gia."
+    description: "Nghệ thuật, âm nhạc, văn học, lịch sử và đời sống văn hóa phong phú đa quốc gia."
   },
   {
     id: "globalvoices-humanrights",
@@ -466,8 +467,69 @@ export const GLOBAL_VOICES_CHANNELS: RssChannel[] = [
   }
 ];
 
-// 10 Comprehensive Publication Sources
+// 11. Kids & Teens Channels (Game, Khám phá & Truyện kể)
+export const KIDS_CHANNELS: RssChannel[] = [
+  {
+    id: "kids-all",
+    name: "Tất cả bài đọc",
+    vietnameseName: "Tất Cả Bài Đọc",
+    url: "https://www.vnereader.fun/kids",
+    badgeColor: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800",
+    description: "Tuyển tập thế giới Game, Minecraft, Roblox, Lego, khoa học vui và truyện thiếu nhi."
+  },
+  {
+    id: "kids-gaming",
+    name: "🎮 Game & Trò Chơi",
+    vietnameseName: "🎮 Game & Trò Chơi",
+    url: "https://www.vnereader.fun/kids/gaming",
+    badgeColor: "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800",
+    description: "Khám phá thế giới Minecraft, Roblox, Pokemon, Lego, Super Mario và bí mật làm game."
+  },
+  {
+    id: "kids-science",
+    name: "🔬 Khoa Học Vui",
+    vietnameseName: "Khoa Học Vui",
+    url: "https://www.vnereader.fun/kids/science",
+    badgeColor: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800",
+    description: "Khám phá thế giới tự nhiên, khủng long T-Rex, vũ trụ và các hiện tượng khoa học kỳ thú."
+  },
+  {
+    id: "kids-fables",
+    name: "📖 Truyện Cổ Tích",
+    vietnameseName: "Truyện Cổ Tích",
+    url: "https://www.vnereader.fun/kids/fables",
+    badgeColor: "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800",
+    description: "Những câu chuyện ngụ ngôn Aesop và truyện cổ tích kinh điển thế giới với bài học nhân văn sâu sắc."
+  },
+  {
+    id: "kids-news",
+    name: "🎈 Tin Tức (Newsround)",
+    vietnameseName: "Tin Tức Thiếu Nhi",
+    url: "https://feeds.bbci.co.uk/newsround/home/rss.xml",
+    badgeColor: "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800",
+    description: "Bản tin thời sự thiếu nhi thế giới từ BBC Newsround: động vật, thể thao, phát minh và bảo vệ môi trường."
+  }
+];
+
+// Comprehensive Publication Sources
 export const PUBLICATION_SOURCES: PublicationSource[] = [
+  {
+    id: "kids",
+    name: "Kids & Teens (Game, Khám phá & Truyện kể)",
+    shortName: "Kids & Teens",
+    badge: "CEFR A1-B1 • Game & Khám phá",
+    tagline: "Khám phá thế giới Game (Minecraft, Roblox, Lego), Khoa học vui & Truyện kỳ thú cho bé",
+    description: "Chuyên mục thiết kế riêng cho các bạn nhỏ và tuổi teen: thế giới game đỉnh cao (Minecraft, Roblox, Pokemon, Lego), truyện ngụ ngôn ý nghĩa, tin tức thiếu nhi CBBC Newsround và những điều kỳ thú về vũ trụ, động vật. Câu văn ngắn gọn, từ vựng dễ hiểu (A1 - B1), hình ảnh sống động và luyện nghe siêu vui!",
+    logoText: "KIDS",
+    badgeColor: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700",
+    gradient: "from-amber-500 via-orange-500 to-rose-500",
+    rssUrl: "https://feeds.bbci.co.uk/newsround/home/rss.xml",
+    websiteUrl: "https://www.vnereader.fun/kids",
+    channels: KIDS_CHANNELS,
+    cefrRange: "A1 - B1",
+    readingStyle: "Truyện kể thiếu nhi, khoa học vui & tin tức đời sống đơn giản",
+    coverImage: "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=1200&auto=format&fit=crop&q=80"
+  },
   {
     id: "vnexpress",
     name: "VnExpress International",
@@ -642,6 +704,13 @@ export const PUBLICATION_SOURCES: PublicationSource[] = [
 
 
 export const SOURCE_FALLBACK_IMAGES = {
+  kids: [
+    "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=800&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=800&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1534088568595-a066f410bcda?w=800&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1473081556163-2a17de81fc97?w=800&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80"
+  ],
   vnexpress: [
     "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&auto=format&fit=crop&q=80",
     "https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?w=800&auto=format&fit=crop&q=80",
@@ -1415,7 +1484,7 @@ export async function fetchGlobalVoicesFeed(channelId: string = "globalvoices-al
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "application/rss+xml, application/xml, text/xml, */*"
           },
-          next: { revalidate: 60 }
+          next: { revalidate: 300 }
         });
         if (res.ok) return await res.text();
       } catch (e) {
@@ -1504,6 +1573,7 @@ export async function fetchGlobalVoicesFeed(channelId: string = "globalvoices-al
 
 // Unified RSS Fetcher by Source & Channel
 export async function fetchRssFeed(channelId: string = "home", sourceId?: string): Promise<NewsItem[]> {
+  if (sourceId === "kids" || channelId.startsWith("kids")) return fetchKidsFeed(channelId);
   if (sourceId === "bbc" || channelId.startsWith("bbc")) return fetchBbcFeed(channelId);
   if (sourceId === "guardian" || channelId.startsWith("guardian")) return fetchGuardianFeed(channelId);
   if (sourceId === "npr" || channelId.startsWith("npr")) return fetchNprFeed(channelId);
@@ -1516,8 +1586,9 @@ export async function fetchRssFeed(channelId: string = "home", sourceId?: string
   return fetchVnExpressFeed(channelId);
 }
 
-// Unified Multi-Source Aggregator (All 10 Sources interleaved)
+// Unified Multi-Source Aggregator (All Sources interleaved)
 export async function fetchAllSourcesLatest(): Promise<{
+  kids: NewsItem[];
   vnexpress: NewsItem[];
   bbc: NewsItem[];
   guardian: NewsItem[];
@@ -1530,7 +1601,8 @@ export async function fetchAllSourcesLatest(): Promise<{
   hony: NewsItem[];
   combined: NewsItem[];
 }> {
-  const [vneRes, bbcRes, guardianRes, tcRes, ppRes, wnRes, nprRes, gutenRes, gvRes, honyRes] = await Promise.allSettled([
+  const [kidsRes, vneRes, bbcRes, guardianRes, tcRes, ppRes, wnRes, nprRes, gutenRes, gvRes, honyRes] = await Promise.allSettled([
+    fetchKidsFeed("kids-all"),
     fetchVnExpressFeed("home"),
     fetchBbcFeed(),
     fetchGuardianFeed(),
@@ -1543,6 +1615,7 @@ export async function fetchAllSourcesLatest(): Promise<{
     fetchHonyFeed()
   ]);
 
+  const kids = kidsRes.status === "fulfilled" ? kidsRes.value : [];
   const vnexpress = vneRes.status === "fulfilled" ? vneRes.value : [];
   const bbc = bbcRes.status === "fulfilled" ? bbcRes.value : [];
   const guardian = guardianRes.status === "fulfilled" ? guardianRes.value : [];
@@ -1556,6 +1629,7 @@ export async function fetchAllSourcesLatest(): Promise<{
 
   // Round-robin interleaved merge so the front feed displays a rich diversity of newspapers
   const sourcesLists = [
+    kids,
     vnexpress,
     bbc,
     guardian,
@@ -1578,12 +1652,16 @@ export async function fetchAllSourcesLatest(): Promise<{
     }
   }
 
-  return { vnexpress, bbc, guardian, theconversation, propublica, wikinews, npr, gutenberg, globalvoices, hony, combined };
+  return { kids, vnexpress, bbc, guardian, theconversation, propublica, wikinews, npr, gutenberg, globalvoices, hony, combined };
 }
 
 export function getArticleSlug(articleUrl: string): string {
   try {
     const u = new URL(articleUrl);
+    if (u.pathname.includes("/kids/")) {
+      const cleanSlug = u.pathname.replace(/^\/kids\/(?:story\/)?/, "");
+      return `kids/${encodeURIComponent(cleanSlug)}`;
+    }
     if (u.hostname.includes("humansofnyarchive")) {
       const match = u.pathname.match(/\/post\/(\d+)/);
       return match ? `hony/${match[1]}` : `hony/${encodeURIComponent(u.pathname.replace(/^\//, ""))}`;
@@ -1624,7 +1702,8 @@ export function reconstructArticleUrl(slug: string[] | string): string {
   if (typeof slug === "string" && (slug.startsWith("http://") || slug.startsWith("https://"))) {
     return slug;
   }
-  const parts = Array.isArray(slug) ? slug : slug.split("/");
+  const rawParts = Array.isArray(slug) ? slug : slug.split("/");
+  const parts = rawParts.map((p, idx) => (idx === rawParts.length - 1 ? p.replace(/\.+$/, "") : p));
   const prefix = parts[0];
   const rawRest = parts.slice(1).join("/");
   let rest = rawRest;
@@ -1638,6 +1717,9 @@ export function reconstructArticleUrl(slug: string[] | string): string {
     return rest;
   }
 
+  if (prefix === "kids") {
+    return `https://www.vnereader.fun/kids/story/${rest.replace(/^\//, "")}`;
+  }
   if (prefix === "hony") {
     return `https://humansofnyarchive.com/post/${rest}`;
   }

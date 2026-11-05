@@ -1,4 +1,5 @@
 import { DEFAULT_SITE_SETTINGS, SiteSettings } from "./siteSettings";
+import { PublicationSourceId } from "@/types/news";
 import { getDbPool } from "./db";
 import fs from "fs";
 import path from "path";
@@ -21,26 +22,26 @@ function ensureDataDir() {
 let inMemorySettings: SiteSettings | null = null;
 
 export async function getGlobalSiteSettings(): Promise<SiteSettings> {
+  // 0. Fast return from in-memory cache
+  if (inMemorySettings) {
+    return inMemorySettings;
+  }
+
   // 1. Try DB first
   const pool = getDbPool();
   if (pool) {
     try {
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS site_settings (
-          key VARCHAR(64) PRIMARY KEY,
-          value JSONB NOT NULL,
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        );
-      `);
       const res = await pool.query(`SELECT value FROM site_settings WHERE key = 'global' LIMIT 1;`);
       if (res.rows.length > 0 && res.rows[0].value) {
         const val = res.rows[0].value as Partial<SiteSettings>;
+        const rawSources = Array.isArray(val.enabledSources) && val.enabledSources.length > 0
+          ? val.enabledSources
+          : DEFAULT_SITE_SETTINGS.enabledSources;
+        const enabledSources = (rawSources.includes("kids") ? rawSources : ["kids", ...rawSources]) as PublicationSourceId[];
         const dbSettings: SiteSettings = {
           ...DEFAULT_SITE_SETTINGS,
           ...val,
-          enabledSources: Array.isArray(val.enabledSources) && val.enabledSources.length > 0
-            ? val.enabledSources
-            : DEFAULT_SITE_SETTINGS.enabledSources
+          enabledSources
         };
         inMemorySettings = dbSettings;
         return dbSettings;

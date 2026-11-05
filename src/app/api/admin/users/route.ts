@@ -8,9 +8,9 @@ export const revalidate = 0;
 
 export async function GET() {
   const pool = getDbPool();
-  const backupUsers = loadBackupUsers();
 
   if (!pool) {
+    const backupUsers = loadBackupUsers();
     return NextResponse.json({
       success: true,
       users: backupUsers,
@@ -36,13 +36,21 @@ export async function GET() {
       );
     `);
 
+    // Ensure master admin exists
+    await pool.query(`
+      INSERT INTO users (id, name, email, avatar, provider, role, last_login_at)
+      VALUES 
+        ('usr_admin_haile', 'Hải Lê', 'hai.le@vnereader.com', 'https://api.dicebear.com/7.x/avataaars/svg?seed=hai.le', 'credentials', 'admin', CURRENT_TIMESTAMP)
+      ON CONFLICT (email) DO NOTHING
+    `);
+
     const res = await pool.query(`
       SELECT id, name, email, avatar, provider, provider_id as "providerId", role, created_at as "createdAt", last_login_at as "lastLoginAt"
       FROM users
       ORDER BY last_login_at DESC
     `);
 
-    let dbUsers: User[] = res.rows.map((row: any) => ({
+    const dbUsers: User[] = res.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
       email: row.email,
@@ -54,45 +62,16 @@ export async function GET() {
       lastLoginAt: row.lastLoginAt ? new Date(row.lastLoginAt).toISOString() : new Date().toISOString()
     }));
 
-    // Merge any users that might be in backup store but not yet in DB
-    const emailMap = new Map<string, User>();
-    for (const u of dbUsers) {
-      emailMap.set(u.email.toLowerCase(), u);
-    }
-    for (const u of backupUsers) {
-      const lower = u.email.toLowerCase();
-      if (!emailMap.has(lower)) {
-        emailMap.set(lower, u);
-        // Also insert into PostgreSQL
-        try {
-          await pool.query(
-            `INSERT INTO users (id, name, email, avatar, provider, provider_id, role, last_login_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
-             ON CONFLICT (email) DO NOTHING`,
-            [u.id, u.name, u.email, u.avatar || null, u.provider, u.providerId || null, u.role || "learner"]
-          );
-        } catch (e) {
-          console.warn("Failed to backfill user into DB:", e);
-        }
-      }
-    }
-
-    const mergedUsers = Array.from(emailMap.values()).sort(
-      (a, b) => new Date(b.lastLoginAt || 0).getTime() - new Date(a.lastLoginAt || 0).getTime()
-    );
-
-    // Keep backup file synchronized
-    saveBackupUsers(mergedUsers);
-
     return NextResponse.json({
       success: true,
-      users: mergedUsers,
+      users: dbUsers,
       isDbConnected: true,
-      total: mergedUsers.length,
+      total: dbUsers.length,
       storageType: "PostgreSQL Database"
     });
   } catch (error: any) {
     console.error("Failed to fetch users from database:", error);
+    const backupUsers = loadBackupUsers();
     return NextResponse.json({
       success: true,
       users: backupUsers,
@@ -122,7 +101,7 @@ export async function POST(req: NextRequest) {
     const pool = getDbPool();
     if (pool) {
       await pool.query(
-        `UPDATE users SET role = $1 WHERE id = $2 OR email = $2`,
+        `UPDATE users SET role = $1 WHERE id = $2 OR LOWER(email) = LOWER($2)`,
         [newRole, userId]
       );
     }
@@ -142,24 +121,34 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Missing email parameter" }, { status: 400 });
     }
 
+    const cleanEmail = email.toLowerCase().trim();
+
     // Do not allow deleting main admin
-    if (email.toLowerCase() === "hai.le@vnereader.com" || email.toLowerCase() === "admin@vnexpress.vn") {
+    if (cleanEmail === "hai.le@vnereader.com" || cleanEmail === "admin@vnexpress.vn") {
       return NextResponse.json({ success: false, error: "Không thể xóa tài khoản Quản trị viên tối cao" }, { status: 403 });
     }
 
     // 1. Remove from backup store
     const backupUsers = loadBackupUsers();
-    const filtered = backupUsers.filter((u) => u.email.toLowerCase() !== email.toLowerCase());
+    const filtered = backupUsers.filter((u) => u.email.toLowerCase().trim() !== cleanEmail);
     saveBackupUsers(filtered);
 
     // 2. Remove from PostgreSQL
     const pool = getDbPool();
     if (pool) {
-      await pool.query(`DELETE FROM users WHERE LOWER(email) = $1`, [email.toLowerCase()]);
+      try {
+        await pool.query(`DELETE FROM saved_words WHERE user_id IN (SELECT id FROM users WHERE LOWER(email) = $1)`, [cleanEmail]);
+        await pool.query(`DELETE FROM learning_progress WHERE user_id IN (SELECT id FROM users WHERE LOWER(email) = $1)`, [cleanEmail]);
+      } catch (cascadeErr) {
+        // Child tables may not exist yet
+      }
+      const deleteResult = await pool.query(`DELETE FROM users WHERE LOWER(email) = $1`, [cleanEmail]);
+      console.log(`Successfully deleted user ${cleanEmail} from PostgreSQL (${deleteResult.rowCount} rows affected)`);
     }
 
     return NextResponse.json({ success: true, message: `Đã xóa thành viên ${email}` });
   } catch (error: any) {
+    console.error("DELETE user error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

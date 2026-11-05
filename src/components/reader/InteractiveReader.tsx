@@ -44,16 +44,20 @@ interface InteractiveReaderProps {
   nextArticle?: { title: string; slug: string } | null;
   onNextArticle?: () => void;
   onBack: () => void;
+  backHref?: string;
   onMarkRead: (articleId: string, sourceId?: string) => void;
   isRead?: boolean;
   showImages?: boolean;
 }
+
+const WORD_CACHE = new Map<string, any>();
 
 export function InteractiveReader({
   article,
   nextArticle,
   onNextArticle,
   onBack,
+  backHref,
   onMarkRead,
   isRead = false,
   showImages = true
@@ -120,9 +124,7 @@ export function InteractiveReader({
   // Clean up audio when component unmounts
   useEffect(() => {
     return () => {
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
+      stopNeuralAudio();
     };
   }, []);
 
@@ -181,35 +183,36 @@ export function InteractiveReader({
     const trimmed = rawWord.trim().replace(/^[^\w]+|[^\w]+$/g, "");
     if (!trimmed || trimmed.length < 2) return;
 
+    const lowerKey = trimmed.toLowerCase();
     setSelectedWord(trimmed);
     setSelectedContext(contextSentence);
+
+    if (WORD_CACHE.has(lowerKey)) {
+      setWordDef(WORD_CACHE.get(lowerKey));
+      setIsLoadingWord(false);
+      return;
+    }
+
     setIsLoadingWord(true);
     setWordDef(null); // Clear previous
 
     const detectedCefr = detectCEFRLevel(trimmed);
     const sourceId = (article as any).sourceId || detectSourceId(article.id, article.link);
-    trackUserEvent({
-      actionType: "LOOKUP_WORD",
-      sourceId,
-      articleTitle: article.title,
-      articleUrl: article.link,
-      metadata: {
-        word: trimmed,
-        cefrLevel: detectedCefr
-      }
-    });
 
     try {
       const res = await fetch(`/api/translate?word=${encodeURIComponent(trimmed)}`);
       const data = await res.json();
       if (data.success && data.definition) {
+        WORD_CACHE.set(lowerKey, data.definition);
         setWordDef(data.definition);
       } else {
-        setWordDef({
+        const fallbackDef = {
           word: trimmed,
           vietnameseMeaning: `Nghĩa: ${trimmed}`,
           cefr: detectCEFRLevel(trimmed)
-        });
+        };
+        WORD_CACHE.set(lowerKey, fallbackDef);
+        setWordDef(fallbackDef);
       }
     } catch (e) {
       console.error("Word lookup error:", e);
@@ -484,16 +487,29 @@ export function InteractiveReader({
         <div className="max-w-4xl mx-auto px-2 sm:px-4 h-14 flex items-center justify-between gap-1 sm:gap-2">
           {/* Back & Next Article buttons */}
           <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onBack}
-              className="h-8 px-2 sm:px-2.5 flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
-              title="Quay lại danh sách bài báo"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span className="hidden md:inline">Quay lại</span>
-            </Button>
+            {backHref ? (
+              <Link
+                href={backHref}
+                prefetch={true}
+                onClick={onBack}
+                className="h-8 px-2 sm:px-2.5 flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground active:scale-95 transition-all rounded-md"
+                title="Quay lại danh sách bài báo"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="hidden md:inline">Quay lại</span>
+              </Link>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onBack}
+                className="h-8 px-2 sm:px-2.5 flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+                title="Quay lại danh sách bài báo"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="hidden md:inline">Quay lại</span>
+              </Button>
+            )}
 
             {onNextArticle && (
               <Button

@@ -30,11 +30,13 @@ import {
   TrendingUp, 
   GraduationCap,
   ArrowLeft,
-  Newspaper
+  Newspaper,
+  Gamepad2
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PublicationsDirectory } from "./PublicationsDirectory";
+import { KidsGameArena } from "@/components/kids/KidsGameArena";
 
 import { PUBLICATION_SOURCES } from "@/lib/rss";
 import { ActiveSourceFilter } from "@/types/news";
@@ -131,6 +133,13 @@ export function NewsDashboard({
     }
   }, [siteSettings.enabledSources, activeSource]);
 
+  // Track current list URL so article detail Back button returns here
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("lastArticleListUrl", window.location.pathname + window.location.search);
+    }
+  }, [activeSource, activeChannel]);
+
   const applyTheme = (theme: "light" | "dark") => {
     if (typeof document !== "undefined") {
       if (theme === "dark") {
@@ -182,11 +191,18 @@ export function NewsDashboard({
     else if (source === "wikinews") channelId = "wikinews-all";
     else if (source === "gutenberg") channelId = "gutenberg-all";
     else if (source === "globalvoices") channelId = "globalvoices-all";
+    else if (source === "kids") channelId = "kids-gaming";
 
     setActiveChannel(channelId);
     setIsLoadingArticles(true);
     try {
-      const res = await fetch(`/api/rss?source=${source}&channel=${channelId}`);
+      const res = await fetch(`/api/rss?source=${source}&channel=${channelId}&_t=${Date.now()}`, {
+        cache: "no-store",
+        headers: {
+          "Pragma": "no-cache",
+          "Cache-Control": "no-cache"
+        }
+      });
       const data = await res.json();
       if (data.success && data.items) {
         setArticles(data.items);
@@ -198,17 +214,20 @@ export function NewsDashboard({
     }
   };
 
-  // Handle browser back/forward buttons
+  // Handle browser back/forward buttons and initial URL sync
   useEffect(() => {
     const handlePopState = () => {
+      if (typeof window === "undefined") return;
       const path = window.location.pathname.replace(/^\//, "").split("/")[0];
       if (!path || path === "") {
-        handleSelectSource("all", false);
+        if (activeSource !== "all") handleSelectSource("all", false);
       } else if (PUBLICATION_SOURCES.some((p) => p.id === path)) {
-        handleSelectSource(path as any, false);
+        if (activeSource !== path) handleSelectSource(path as any, false);
       }
     };
+
     window.addEventListener("popstate", handlePopState);
+    handlePopState(); // Sync immediately on mount
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
@@ -225,7 +244,11 @@ export function NewsDashboard({
     const sourceParam = activeSource === "all" ? "vnexpress" : activeSource;
     try {
       const res = await fetch(`/api/rss?source=${sourceParam}&channel=${channelId}&_t=${Date.now()}`, {
-        cache: "no-store"
+        cache: "no-store",
+        headers: {
+          "Pragma": "no-cache",
+          "Cache-Control": "no-cache"
+        }
       });
       const data = await res.json();
       if (data.success && data.items) {
@@ -397,6 +420,47 @@ export function NewsDashboard({
                 </div>
               </div>
             </section>
+
+            {/* Interactive Game Arena for Kids */}
+            {activeSource === "kids" && activeChannel === "kids-gaming" && (
+              <section className="space-y-4">
+                <KidsGameArena />
+                <div className="pt-4 border-t border-border/40">
+                  <div className="flex items-center gap-2 mb-1">
+                    <BookOpen className="w-4 h-4 text-purple-600" />
+                    <h3 className="text-sm font-bold text-foreground">
+                      📖 Đọc Thêm Về Thế Giới Game & Trò Chơi (Minecraft, Roblox, Lego...)
+                    </h3>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Quick Game Banner when viewing other kids channels */}
+            {activeSource === "kids" && activeChannel !== "kids-gaming" && (
+              <div 
+                onClick={() => handleSelectChannel("kids-gaming")}
+                className="cursor-pointer p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-rose-600 text-white flex items-center justify-between shadow-md hover:scale-[1.01] active:scale-95 transition-all"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-inner">
+                    🎮
+                  </div>
+                  <div>
+                    <div className="text-sm font-black flex items-center gap-1.5">
+                      <span>Khu Vui Chơi Game Tiếng Anh Cho Bé</span>
+                      <Badge className="bg-amber-400 text-purple-900 hover:bg-amber-400 text-[10px] font-bold py-0">
+                        Chơi ngay
+                      </Badge>
+                    </div>
+                    <div className="text-xs text-white/80">Lật thẻ trí nhớ, thợ săn chữ cái & đố vui nhận sao ⭐</div>
+                  </div>
+                </div>
+                <Button size="sm" className="bg-white text-purple-700 hover:bg-white/90 font-bold rounded-full text-xs shadow-sm hidden xs:inline-flex">
+                  Vào Chơi ➔
+                </Button>
+              </div>
+            )}
 
         {/* Filter Toolbar: CEFR levels & Article Counts */}
         <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border/50">

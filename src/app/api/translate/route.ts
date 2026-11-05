@@ -13,7 +13,14 @@ export async function GET(request: NextRequest) {
     }
 
     const definition = await lookupWord(word);
-    return NextResponse.json({ success: true, definition });
+    return NextResponse.json(
+      { success: true, definition },
+      {
+        headers: {
+          "Cache-Control": "public, max-age=86400, s-maxage=2592000, stale-while-revalidate=86400"
+        }
+      }
+    );
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: error.message || "Failed to lookup word" },

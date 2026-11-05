@@ -5,8 +5,7 @@ import { getGlobalSiteSettings } from "@/lib/serverSettings";
 import { PublicationSourceId } from "@/types/news";
 import type { Metadata } from "next";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+export const revalidate = 60;
 
 interface SourcePageProps {
   params: Promise<{
@@ -20,7 +19,7 @@ export async function generateMetadata({ params }: SourcePageProps): Promise<Met
   const { source } = await params;
   const pub = PUBLICATION_SOURCES.find((p) => p.id === source);
   if (!pub) {
-    return { title: "VnE Reader - Đọc Báo Tiếng Anh Đa Nguồn" };
+    return { title: "Vne Reader - Học Tiếng Anh Qua Báo" };
   }
   return {
     title: `${pub.name} | VnE Reader`,
@@ -47,6 +46,7 @@ export default async function SourcePage({ params }: SourcePageProps) {
   else if (source === "wikinews") defaultChannel = "wikinews-all";
   else if (source === "gutenberg") defaultChannel = "gutenberg-all";
   else if (source === "globalvoices") defaultChannel = "globalvoices-all";
+  else if (source === "kids") defaultChannel = "kids-gaming";
 
   const [initialSiteSettings, { combined }] = await Promise.all([
     getGlobalSiteSettings(),

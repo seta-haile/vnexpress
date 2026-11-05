@@ -11,17 +11,18 @@ import {
   WIKINEWS_CHANNELS,
   GUTENBERG_CHANNELS,
   GLOBAL_VOICES_CHANNELS,
+  KIDS_CHANNELS,
   PUBLICATION_SOURCES 
 } from "@/lib/rss";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+export const revalidate = 300;
 
 export async function GET(request: NextRequest) {
   try {
     const sourceId = request.nextUrl.searchParams.get("source") || undefined;
     let defaultChannel = "home";
-    if (sourceId === "hony") defaultChannel = "hony-all";
+    if (sourceId === "kids") defaultChannel = "kids-gaming";
+    else if (sourceId === "hony") defaultChannel = "hony-all";
     else if (sourceId === "npr") defaultChannel = "npr-all";
     else if (sourceId === "bbc") defaultChannel = "bbc-world";
     else if (sourceId === "guardian") defaultChannel = "guardian-world";
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
     const items = await fetchRssFeed(channelId, sourceId);
 
     const allChannels = [
+      ...KIDS_CHANNELS,
       ...RSS_CHANNELS, 
       ...NPR_CHANNELS, 
       ...HONY_CHANNELS, 
@@ -50,13 +52,20 @@ export async function GET(request: NextRequest) {
     const currentChannel = allChannels.find(c => c.id === channelId) || allChannels[0];
     const currentSource = PUBLICATION_SOURCES.find(s => s.id === sourceId) || PUBLICATION_SOURCES[0];
 
-    return NextResponse.json({
-      success: true,
-      source: currentSource,
-      channel: currentChannel,
-      items,
-      count: items.length
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        source: currentSource,
+        channel: currentChannel,
+        items,
+        count: items.length
+      },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600"
+        }
+      }
+    );
   } catch (error: any) {
     console.error("API /api/rss error:", error);
     return NextResponse.json(

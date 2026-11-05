@@ -16,6 +16,7 @@ export interface SiteSettings {
 }
 
 export const ALL_PUBLICATION_SOURCE_IDS: PublicationSourceId[] = [
+  "kids",
   "vnexpress",
   "bbc",
   "guardian",
@@ -29,6 +30,8 @@ export const ALL_PUBLICATION_SOURCE_IDS: PublicationSourceId[] = [
 ];
 
 export const CURATED_ACTIVE_SOURCE_IDS: PublicationSourceId[] = [
+  "kids",
+  "vnexpress",
   "bbc",
   "guardian",
   "theconversation",

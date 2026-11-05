@@ -17,9 +17,9 @@ const merriweather = Merriweather({
 });
 
 export const metadata: Metadata = {
-  title: "VnE Reader - Học Tiếng Anh Qua Báo VnExpress International",
-  description: "Trải nghiệm học tiếng Anh qua tin tức báo chí thực tế từ VnExpress: tra từ điển 1-chạm, nghe audio Text-to-Speech chuẩn bản ngữ, phân tích CEFR và ôn tập Flashcard.",
-  keywords: ["học tiếng anh", "vnexpress international", "ielts", "toeic", "flashcards", "reading english news"]
+  title: "Vne Reader - Học Tiếng Anh Qua Báo",
+  description: "Trải nghiệm học tiếng Anh qua tin tức báo chí thực tế: tra từ điển 1-chạm, nghe audio Text-to-Speech chuẩn bản ngữ, phân tích CEFR và ôn tập Flashcard.",
+  keywords: ["học tiếng anh", "vne reader", "đọc báo tiếng anh", "ielts", "toeic", "flashcards", "reading english news"]
 };
 
 export default function RootLayout({

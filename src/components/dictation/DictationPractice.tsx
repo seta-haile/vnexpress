@@ -345,7 +345,7 @@ export function DictationPractice({
               <span>Luyện tập lại</span>
             </Button>
 
-            <Link href={`/article/${articleSlug}`} className="w-full sm:w-auto">
+            <Link href={`/article/${articleSlug}`} replace className="w-full sm:w-auto">
               <Button
                 variant="default"
                 size="lg"
@@ -392,7 +392,7 @@ export function DictationPractice({
       <header className="sticky top-0 z-40 w-full border-b border-border/40 bg-background/95 backdrop-blur-md px-3 sm:px-6 py-2.5">
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-2">
           {/* Back button */}
-          <Link href={`/article/${articleSlug}`}>
+          <Link href={`/article/${articleSlug}`} replace>
             <Button
               variant="ghost"
               size="sm"

@@ -25,6 +25,8 @@ export function trackUserEvent(payload: {
   metadata?: Record<string, any>;
 }): void {
   if (typeof window === "undefined") return;
+  // Ignore micro-events like word lookups to avoid exhausting serverless request limits
+  if (payload.actionType === "LOOKUP_WORD") return;
 
   try {
     const session = getAuthSession();

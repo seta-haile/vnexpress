@@ -6,6 +6,7 @@ import { ArticleDetail } from "@/types/news";
 import { InteractiveReader } from "@/components/reader/InteractiveReader";
 import { getAppSettings, markArticleRead, detectSourceId, getUserStats, AppSettings, DEFAULT_APP_SETTINGS } from "@/lib/storage";
 import { trackUserEvent } from "@/lib/trackerClient";
+import { stopNeuralAudio } from "@/lib/voice";
 
 interface ArticleDetailClientProps {
   article: ArticleDetail;
@@ -16,6 +17,7 @@ export function ArticleDetailClient({ article, nextArticle }: ArticleDetailClien
   const router = useRouter();
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
   const [isRead, setIsRead] = useState(false);
+  const [backHref, setBackHref] = useState<string>("/");
 
   useEffect(() => {
     const settings = getAppSettings();
@@ -32,6 +34,15 @@ export function ArticleDetailClient({ article, nextArticle }: ArticleDetailClien
     const stats = getUserStats();
     setIsRead(stats.readArticleIds.includes(article.id));
 
+    // Determine backHref and prefetch it immediately for zero-delay navigation
+    let target = "/";
+    const saved = sessionStorage.getItem("lastArticleListUrl");
+    if (saved && !saved.startsWith("/dictation") && !saved.startsWith("/article")) {
+      target = saved;
+    }
+    setBackHref(target);
+    router.prefetch(target);
+
     // Track user reading event
     const sourceId = (article as any).sourceId || detectSourceId(article.id, article.link);
     trackUserEvent({
@@ -41,14 +52,18 @@ export function ArticleDetailClient({ article, nextArticle }: ArticleDetailClien
       articleUrl: article.link,
       articleSlug: article.id
     });
-  }, [article.id, article.title, article.link]);
+  }, [article.id, article.title, article.link, router]);
 
   const handleBack = () => {
-    if (window.history.length > 2) {
-      router.back();
-    } else {
-      router.push("/");
+    stopNeuralAudio();
+    let target = backHref;
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("lastArticleListUrl");
+      if (saved && !saved.startsWith("/dictation") && !saved.startsWith("/article")) {
+        target = saved;
+      }
     }
+    router.push(target);
   };
 
   const handleNextArticle = () => {
@@ -69,6 +84,7 @@ export function ArticleDetailClient({ article, nextArticle }: ArticleDetailClien
       nextArticle={nextArticle}
       onNextArticle={nextArticle ? handleNextArticle : undefined}
       onBack={handleBack}
+      backHref={backHref}
       onMarkRead={handleMarkRead}
       isRead={isRead}
       showImages={appSettings.showImages}

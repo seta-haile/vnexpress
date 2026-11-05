@@ -4,6 +4,7 @@ import { estimateCEFR } from "@/lib/rss";
 import { CURATED_VOCAB, cleanWord } from "@/lib/dictionary";
 import { XMLParser } from "fast-xml-parser";
 import { getClassicStoryDetail } from "@/lib/classicStories";
+import { getKidsArticleDetail } from "@/lib/kidsContent";
 
 async function fetchHonyArticleDetail(url: string): Promise<ArticleDetail | null> {
   const idMatch = url.match(/\/post\/(\d+)|(\d{8,})/);
@@ -311,7 +312,7 @@ async function fetchArticleDetailViaProxy(url: string): Promise<ArticleDetail | 
 
     // Title
     const titleMatch = text.match(/^Title:\s*(.+)$/m);
-    const title = titleMatch ? titleMatch[1].trim() : "Article Detail";
+    let title = titleMatch ? titleMatch[1].trim() : "Article Detail";
 
     // Published date
     const dateMatch = text.match(/^Published Time:\s*(.+)$/m);
@@ -324,7 +325,7 @@ async function fetchArticleDetailViaProxy(url: string): Promise<ArticleDetail | 
     for (const m of allImages) {
       const imgUrl = m[2];
       const cap = m[1];
-      if (!imgUrl.includes("placeholder") && !imgUrl.includes("logo") && !imgUrl.includes("icon")) {
+      if (!imgUrl.includes("placeholder") && !imgUrl.includes("logo") && !imgUrl.includes("icon") && !imgUrl.endsWith(".svg")) {
         thumbnail = imgUrl;
         caption = cap.replace(/^Image\s*\d*:\s*/i, "").trim();
         break;
@@ -332,57 +333,114 @@ async function fetchArticleDetailViaProxy(url: string): Promise<ArticleDetail | 
     }
 
     // Parse paragraphs from Markdown Content
-    const lines = text.split("\n");
+    const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
     const rawParagraphs: string[] = [];
     let inContent = false;
-    let currentP = "";
+    let passedMainHeader = false;
 
-    for (let line of lines) {
-      line = line.trim();
-      if (!line) {
-        if (currentP.length > 25) {
-          rawParagraphs.push(currentP);
-        }
-        currentP = "";
-        continue;
-      }
-      if (line.startsWith("Markdown Content:")) {
+    for (const rawLine of lines) {
+      if (rawLine.startsWith("Markdown Content:")) {
         inContent = true;
         continue;
       }
       if (!inContent) continue;
+
+      // Stop processing once footer or related articles section is reached
       if (
-        line.startsWith("![") ||
-        line.startsWith("URL Source:") ||
-        line.startsWith("Published Time:") ||
-        line.startsWith("Title:")
+        rawLine.startsWith("* * *") ||
+        rawLine.startsWith("---") ||
+        rawLine.startsWith("___") ||
+        rawLine.startsWith("## [") ||
+        rawLine.startsWith("### [") ||
+        rawLine.startsWith("Related") ||
+        rawLine.startsWith("More from ") ||
+        rawLine.includes("BBC is not responsible") ||
+        rawLine.includes("Related Topics") ||
+        rawLine.includes("Explore more on these topics") ||
+        rawLine.includes("Sign up for our free newsletter") ||
+        rawLine.includes("Comments (")
       ) {
-        continue;
-      }
-      if (
-        line.includes("BBC is not responsible") ||
-        line.includes("Sign up for") ||
-        line.includes("Copyright") ||
-        line.startsWith("Related Topics") ||
-        line.includes("Share this article")
-      ) {
-        continue;
-      }
-      if ((line.includes("reporter") || line.includes("correspondent")) && line.length < 50) {
+        if (rawParagraphs.length >= 2) break;
         continue;
       }
 
-      currentP = currentP ? `${currentP} ${line}` : line;
+      // Skip navigation, ads, metadata and boilerplates
+      if (
+        rawLine.startsWith("![") ||
+        rawLine.startsWith("URL Source:") ||
+        rawLine.startsWith("Published Time:") ||
+        rawLine.startsWith("Title:") ||
+        rawLine.startsWith("[Skip to content") ||
+        rawLine.startsWith("[Watch Live") ||
+        rawLine.startsWith("[Sign In") ||
+        rawLine.startsWith("[Home") ||
+        rawLine.startsWith("Site search") ||
+        rawLine.startsWith("Advertisement") ||
+        rawLine.startsWith("Subscribe") ||
+        rawLine.startsWith("Share") ||
+        rawLine.startsWith("Save") ||
+        rawLine.startsWith("Getty Images") ||
+        rawLine.startsWith("EPA-EFE") ||
+        rawLine.startsWith("Reuters") ||
+        rawLine.startsWith("AFP") ||
+        rawLine.startsWith("[Add as preferred") ||
+        /^\d+\s*(hours?|mins?|days?|hrs?|seconds?)\s*ago$/i.test(rawLine) ||
+        /^\s*(\*|\-|\d+\.)?\s*\[.*?\]\(https?:\/\/.*?\)\s*$/.test(rawLine)
+      ) {
+        continue;
+      }
+
+      // Heading 1 represents article title
+      if (rawLine.startsWith("# ")) {
+        passedMainHeader = true;
+        const headingText = rawLine.replace(/^#+\s*/, "").trim();
+        if (headingText && (!title || title === "Article Detail")) {
+          title = headingText;
+        }
+        continue;
+      }
+
+      // Skip pre-header garbage
+      if (!passedMainHeader && (rawLine.length < 50 || rawLine.startsWith("*") || rawLine.startsWith("["))) {
+        continue;
+      }
+
+      // Clean inline markdown links & styles
+      let clean = rawLine
+        .replace(/\[([^\]]+)\]\(https?:\/\/[^\s)]+\)/g, "$1")
+        .replace(/\*\*([^*]+)\*\*/g, "$1")
+        .replace(/\*([^*]+)\*/g, "$1")
+        .replace(/_([^_]+)_/g, "$1")
+        .replace(/`([^`]+)`/g, "$1")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&amp;/g, "&")
+        .replace(/&ldquo;|&rdquo;/g, '"')
+        .replace(/&rsquo;|&lsquo;/g, "'")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      // Clean any subheadings ## text that are just in-article section headers
+      if (clean.startsWith("## ") || clean.startsWith("### ")) {
+        clean = clean.replace(/^#+\s*/, "").trim();
+      }
+
+      if (
+        clean.length > 30 &&
+        !clean.startsWith("Image caption") &&
+        !clean.startsWith("Media caption") &&
+        !clean.startsWith("Photo:") &&
+        !clean.startsWith("Photo by")
+      ) {
+        rawParagraphs.push(clean);
+      }
     }
-    if (currentP.length > 25) rawParagraphs.push(currentP);
 
-    const paragraphs: ArticleParagraph[] = rawParagraphs
-      .filter(p => p.length > 30 && !p.startsWith("Image caption") && !p.startsWith("Media caption"))
-      .map((p, idx) => ({ id: `p-${idx}`, text: p }));
+    if (rawParagraphs.length === 0) return null;
 
-    if (paragraphs.length === 0) return null;
-
-    const lead = paragraphs[0]?.text || "";
+    const lead = rawParagraphs[0];
+    const bodyParagraphs = rawParagraphs.slice(1).length > 0 ? rawParagraphs.slice(1) : rawParagraphs;
+    const paragraphs: ArticleParagraph[] = bodyParagraphs.map((p, idx) => ({ id: `p-${idx}`, text: p }));
 
     // Determine category
     let category = "News";
@@ -454,6 +512,11 @@ async function fetchArticleDetailViaProxy(url: string): Promise<ArticleDetail | 
 }
 
 export async function fetchArticleDetail(url: string): Promise<ArticleDetail | null> {
+  // 0. Kids & Teens Curated Stories & Science
+  if (url.includes("/kids/") || url.startsWith("kids") || url.includes("vnereader.fun/kids")) {
+    return getKidsArticleDetail(url);
+  }
+
   // 1. Classic Stories (Project Gutenberg / Standard Ebooks)
   if (url.includes("gutenberg.org") || url.includes("/gutenberg/") || url.startsWith("gutenberg")) {
     return getClassicStoryDetail(url);

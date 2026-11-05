@@ -4,7 +4,7 @@ import { VoicePreset } from "./voice";
 const STORAGE_KEYS = {
   SAVED_WORDS: "vne_learning_saved_words_v1",
   STATS: "vne_learning_stats_v1",
-  READER_SETTINGS: "vne_learning_reader_settings_v1",
+  READER_SETTINGS: "vne_learning_reader_settings_v2",
   BOOKMARKS: "vne_learning_bookmarks_v1"
 };
 
@@ -55,7 +55,7 @@ export const DEFAULT_READER_SETTINGS: ReaderSettings = {
   fontSize: 'lg',
   fontFamily: 'serif',
   readerTheme: 'light',
-  highlightCefr: true,
+  highlightCefr: false,
   highlightLevel: 'all',
   speechRate: 1.0,
   autoTranslateSentence: false,
@@ -76,6 +76,7 @@ export function getSavedWords(): SavedWord[] {
 export function detectSourceId(articleId?: string, url?: string): string {
   if (articleId) {
     const id = articleId.toLowerCase();
+    if (id.startsWith("kids-") || id.startsWith("kids_") || id.startsWith("kids/")) return "kids";
     if (id.startsWith("bbc-") || id.startsWith("bbc_")) return "bbc";
     if (id.startsWith("guardian-") || id.startsWith("guardian_")) return "guardian";
     if (id.startsWith("theconversation-") || id.startsWith("conversation-")) return "theconversation";
@@ -89,6 +90,7 @@ export function detectSourceId(articleId?: string, url?: string): string {
   }
   if (url) {
     const u = url.toLowerCase();
+    if (u.includes("/kids/") || u.includes("newsround")) return "kids";
     if (u.includes("bbc.")) return "bbc";
     if (u.includes("theguardian.")) return "guardian";
     if (u.includes("theconversation.")) return "theconversation";

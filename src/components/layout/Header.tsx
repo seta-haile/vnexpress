@@ -24,6 +24,7 @@ import { getLocalSiteSettings, fetchRemoteSiteSettings, DEFAULT_SITE_SETTINGS, S
 import { User } from "@/types/auth";
 
 const SOURCE_TABS_CONFIG: Record<string, { label: string; activeClass: string }> = {
+  kids: { label: "🎈 Kids & Teens", activeClass: "bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white shadow-sm shadow-orange-500/30" },
   vnexpress: { label: "📰 VnExpress", activeClass: "bg-[#9A1B43] text-white shadow-sm shadow-[#9A1B43]/30" },
   bbc: { label: "🇬🇧 BBC News", activeClass: "bg-red-700 text-white shadow-sm shadow-red-700/25" },
   guardian: { label: "🌐 The Guardian", activeClass: "bg-blue-800 text-white shadow-sm shadow-blue-800/25" },

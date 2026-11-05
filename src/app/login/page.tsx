@@ -1,42 +1,62 @@
 "use client";
 
 import React, { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
   GraduationCap, 
-  Sparkles, 
-  Database, 
-  Flame, 
+  Headphones, 
   Bookmark, 
-  ArrowLeft, 
-  Mail, 
-  Lock, 
-  User as UserIcon, 
-  Eye, 
-  EyeOff, 
-  CheckCircle2, 
-  ShieldCheck, 
-  Loader2,
+  Sparkles, 
   Globe,
-  Headphones,
-  AlertCircle
+  EyeOff,
+  TrendingUp,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+  ArrowRight
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { saveAuthSession, DEMO_ACCOUNTS, createOrInitAdminAccount, isAdminUser } from "@/lib/auth";
+import { saveAuthSession, DEMO_ACCOUNTS, isAdminUser } from "@/lib/auth";
 import { loginWithRealGoogle, loginWithRealFacebook } from "@/lib/oauth-sdk";
 import { User } from "@/types/auth";
 
+const BENEFITS = [
+  {
+    icon: Globe,
+    title: "Mở rộng kiến thức xã hội",
+    desc: "Cập nhật nhịp sống, kinh tế & xu hướng thế giới mỗi ngày.",
+    badge: "Thời sự 24/7",
+    color: "from-blue-500 to-cyan-500",
+    bg: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
+  },
+  {
+    icon: Headphones,
+    title: "Lên trình Nghe - Nói - Đọc - Viết",
+    desc: "Luyện phát âm AI, karaoke chữ chạy và chép chính tả Dictation.",
+    badge: "4-in-1 Skills",
+    color: "from-rose-500 to-amber-500",
+    bg: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+  },
+  {
+    icon: Sparkles,
+    title: "Bùng nổ vốn từ vựng",
+    desc: "Bấm là tra nghĩa tức thì, lọc từ chuẩn CEFR và ôn qua Flashcard.",
+    badge: "X3 Từ vựng",
+    color: "from-amber-500 to-orange-500",
+    bg: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+  },
+  {
+    icon: EyeOff,
+    title: "Chế độ đọc tàng hình công sở",
+    desc: "Nền tối + ẩn ảnh 100%, thoải mái nâng band mà không sợ sếp dòm ngó.",
+    badge: "Stealth Mode",
+    color: "from-emerald-500 to-teal-500",
+    bg: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+  }
+];
+
 export default function LoginPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<"signin" | "signup">("signin");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [name, setName] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -55,9 +75,8 @@ export default function LoginPage() {
       if (provider === "google") {
         if (!googleClientId) {
           const useDemo = confirm(
-            "⚠️ Bạn chưa điền NEXT_PUBLIC_GOOGLE_CLIENT_ID vào file .env.local!\n\n" +
-            "👉 Bạn có muốn đăng nhập bằng tài khoản Demo để trải nghiệm ngay trước không?\n\n" +
-            "(Để dùng tài khoản Google thật của bạn, hãy tạo Client ID tại https://console.cloud.google.com và dán vào file .env.local)"
+            "⚠️ Bạn chưa cấu hình NEXT_PUBLIC_GOOGLE_CLIENT_ID trong môi trường!\n\n" +
+            "👉 Bạn có muốn đăng nhập bằng tài khoản Demo để trải nghiệm ngay không?"
           );
           if (useDemo) {
             loggedInUser = DEMO_ACCOUNTS.google;
@@ -67,15 +86,13 @@ export default function LoginPage() {
             return;
           }
         } else {
-          // Gọi SDK Google Identity Services thật 100%
           loggedInUser = await loginWithRealGoogle(googleClientId);
         }
       } else {
         if (!fbAppId) {
           const useDemo = confirm(
-            "⚠️ Bạn chưa điền NEXT_PUBLIC_FACEBOOK_APP_ID vào file .env.local!\n\n" +
-            "👉 Bạn có muốn đăng nhập bằng tài khoản Demo để trải nghiệm ngay trước không?\n\n" +
-            "(Để dùng tài khoản Facebook thật của bạn, hãy tạo App ID tại https://developers.facebook.com và dán vào file .env.local)"
+            "⚠️ Bạn chưa cấu hình NEXT_PUBLIC_FACEBOOK_APP_ID trong môi trường!\n\n" +
+            "👉 Bạn có muốn đăng nhập bằng tài khoản Demo để trải nghiệm ngay không?"
           );
           if (useDemo) {
             loggedInUser = DEMO_ACCOUNTS.facebook;
@@ -85,7 +102,6 @@ export default function LoginPage() {
             return;
           }
         } else {
-          // Gọi SDK Meta Facebook thật 100%
           loggedInUser = await loginWithRealFacebook(fbAppId);
         }
       }
@@ -121,236 +137,129 @@ export default function LoginPage() {
     }
   };
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) return;
-
-    if (tab === "signup") {
-      if (password.length < 6) {
-        setErrorMsg("Mật khẩu phải có độ dài tối thiểu 6 ký tự.");
-        return;
-      }
-      if (password !== confirmPassword) {
-        setErrorMsg("Mật khẩu xác nhận không khớp với mật khẩu đã nhập.");
-        return;
-      }
-    }
-
-    setIsLoading(true);
-    setLoadingProvider("email");
-    setErrorMsg(null);
-
-    try {
-      // Check for Admin Account: admin / 123123
-      const cleanEmail = email.trim().toLowerCase();
-      if ((cleanEmail === "admin" || cleanEmail === "admin@vnexpress.vn") && password === "123123") {
-        const adminUser = createOrInitAdminAccount();
-        router.push("/admin/settings");
-        return;
-      }
-
-      const isHaiLe = cleanEmail === "hai.le@vnereader.com";
-      const user: User = {
-        id: isHaiLe ? "usr_admin_haile" : `usr_${Date.now()}`,
-        name: name.trim() || (isHaiLe ? "Hải Lê" : email.split("@")[0]),
-        email: email.trim(),
-        avatar: isHaiLe
-          ? "https://api.dicebear.com/7.x/avataaars/svg?seed=hai.le"
-          : `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(email)}`,
-        provider: "credentials",
-        role: isHaiLe ? "admin" : "user",
-        createdAt: new Date().toISOString(),
-        lastLoginAt: new Date().toISOString()
-      };
-
-      // Lưu vào PostgreSQL Database qua API backend
-      let finalUser = user;
-      try {
-        const res = await fetch("/api/auth/social-login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user })
-        });
-        const data = await res.json();
-        if (data?.user) {
-          finalUser = data.user;
-        }
-      } catch (e) {
-        console.warn("Could not sync to DB:", e);
-      }
-
-      saveAuthSession(finalUser);
-      if (isHaiLe || finalUser.role === "admin") {
-        router.push("/admin/settings");
-      } else {
-        router.push("/");
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message || "Lỗi đăng nhập email");
-    } finally {
-      setIsLoading(false);
-      setLoadingProvider(null);
-    }
-  };
-
   return (
-    <div className="min-h-screen w-full bg-background flex flex-col justify-between">
-      {/* Top Simple Bar */}
-      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-red-600 via-rose-500 to-amber-500 flex items-center justify-center text-white shadow-sm">
-            <GraduationCap className="w-4 h-4" />
-          </div>
-          <span className="font-extrabold text-sm tracking-tight text-foreground">
-            VnE Reader English
-          </span>
-        </div>
+    <div className="min-h-screen w-full bg-background relative overflow-hidden flex flex-col justify-between selection:bg-rose-500/20">
+      {/* Ambient background glow effects */}
+      <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-tr from-rose-500/10 via-amber-500/10 to-red-600/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-10 right-10 w-[500px] h-[500px] bg-gradient-to-bl from-blue-500/10 via-teal-500/5 to-transparent rounded-full blur-3xl pointer-events-none" />
 
-        <Badge variant="outline" className="text-xs font-medium border-rose-500/30 text-rose-600 dark:text-rose-400">
-          Đồng bộ tiến độ học tập
-        </Badge>
-      </div>
+      {/* Top spacer */}
+      <div className="h-4 sm:h-8" />
 
-      {/* Main Split Grid */}
-      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-12 flex-1 flex items-center">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16 items-center w-full">
+      {/* Main Split Layout Container */}
+      <main className="max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 relative z-10 my-auto py-6 sm:py-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
-          {/* Left Column: Visual Brand & Value Props */}
-          <div className="lg:col-span-7 space-y-8">
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-red-600 via-rose-500 to-amber-500 flex items-center justify-center text-white shadow-lg shadow-rose-500/30">
+          {/* LEFT SIDE: Fresh & Punchy Value Highlights */}
+          <div className="lg:col-span-7 space-y-6 text-left">
+            {/* Header Badge */}
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-rose-500/10 to-amber-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold shadow-sm backdrop-blur-sm">
+              <Sparkles className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
+              <span>Học tiếng Anh kiểu mới • Tràn đầy cảm hứng</span>
+            </div>
+
+            {/* Bold Headline */}
+            <div className="space-y-2.5">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-[1.15]">
+                Đọc báo mỗi ngày, <br />
+                <span className="bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 bg-clip-text text-transparent">
+                  trình tiếng Anh lên mây!
+                </span>
+              </h1>
+              <p className="text-sm sm:text-base text-muted-foreground font-medium max-w-xl leading-relaxed">
+                Tạm biệt sách vở khô khan. Biến 15 phút đọc tin tức thành thói quen nâng trình ngoại ngữ tự nhiên và thực chiến nhất.
+              </p>
+            </div>
+
+            {/* 4 Punchy Benefit Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5 pt-1">
+              {BENEFITS.map((item, idx) => {
+                const IconComponent = item.icon;
+                return (
+                  <div
+                    key={idx}
+                    className="group p-3.5 sm:p-4 rounded-2xl bg-card/70 hover:bg-card/95 backdrop-blur-md border border-border/70 hover:border-border transition-all duration-300 hover:shadow-lg hover:shadow-rose-950/5 dark:hover:shadow-black/20 flex flex-col justify-between space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${item.bg}`}>
+                        <IconComponent className="w-5 h-5" />
+                      </div>
+                      <Badge variant="outline" className="text-[10px] font-bold px-1.5 py-0.5 border-border/60 text-muted-foreground group-hover:text-foreground transition-colors">
+                        {item.badge}
+                      </Badge>
+                    </div>
+
+                    <div>
+                      <h2 className="text-sm font-bold text-foreground group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
+                        {item.title}
+                      </h2>
+                      <p className="text-xs text-muted-foreground/90 font-medium leading-relaxed mt-1">
+                        {item.desc}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Micro stats banner */}
+            <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-2 text-xs font-semibold text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                <span>10+ nguồn báo uy tín</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                <span>Không quảng cáo làm phiền</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                <span>Miễn phí 100%</span>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT SIDE: Centered Premium Login Card */}
+          <div className="lg:col-span-5 w-full max-w-md mx-auto lg:max-w-none">
+            <div className="bg-card/90 backdrop-blur-xl border border-border/80 shadow-2xl shadow-rose-950/10 dark:shadow-black/50 rounded-3xl p-6 sm:p-9 space-y-6 sm:space-y-7 transition-all">
+              
+              {/* Logo Brand Header */}
+              <div className="text-center space-y-3">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-red-600 via-rose-500 to-amber-500 text-white shadow-lg shadow-rose-500/25 ring-4 ring-rose-500/10 mb-1">
                   <GraduationCap className="w-7 h-7" />
                 </div>
+
                 <div>
-                  <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-                    VnE Reader Multi-News
-                  </h1>
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    Học tiếng Anh đa nguồn: VnExpress, Humans of New York...
+                  <div className="flex items-center justify-center gap-1.5 mb-1">
+                    <span className="font-black text-2xl tracking-tight bg-gradient-to-r from-red-600 via-rose-600 to-slate-900 dark:to-white bg-clip-text text-transparent">
+                      VnE Reader
+                    </span>
+                    <Badge variant="secondary" className="text-[10px] font-bold px-1.5 py-0 bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-300/30">
+                      ENGLISH
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground font-medium">
+                    Bắt đầu hành trình đọc báo thông minh ngay hôm nay
                   </p>
                 </div>
               </div>
 
-              <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-foreground leading-[1.15]">
-                Đọc báo đa nguồn.{" "}
-                <span className="bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 bg-clip-text text-transparent">
-                  Nâng tầm vốn từ
-                </span>{" "}
-                mỗi ngày.
-              </h2>
-
-              <p className="text-base text-muted-foreground max-w-xl leading-relaxed">
-                Khám phá kho bài đọc phong phú từ VnExpress International, Humans of New York. Đăng nhập để lưu từ vựng và đồng bộ tiến độ học tập trên mọi thiết bị.
-              </p>
-            </div>
-
-            {/* Feature Highlights Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-              <div className="p-4 rounded-2xl bg-card border border-border/70 shadow-sm space-y-2">
-                <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
-                  <Headphones className="w-5 h-5" />
-                </div>
-                <h4 className="font-bold text-sm text-foreground">TTS Karaoke AI</h4>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Bôi đậm chữ theo giọng đọc, 4 giọng Nam/Nữ trẻ & trung niên.
-                </p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-card border border-border/70 shadow-sm space-y-2">
-                <div className="w-9 h-9 rounded-xl bg-rose-500/10 text-rose-600 flex items-center justify-center">
-                  <Bookmark className="w-5 h-5" />
-                </div>
-                <h4 className="font-bold text-sm text-foreground">Sổ Từ Vựng Thông Minh</h4>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Tra từ 1 chạm, dịch cụm từ tức thì và tự động xếp cấp độ CEFR.
-                </p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-card border border-border/70 shadow-sm space-y-2">
-                <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center">
-                  <Sparkles className="w-5 h-5" />
-                </div>
-                <h4 className="font-bold text-sm text-foreground">Luyện Flashcard & Quiz</h4>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Ôn tập ghi nhớ sâu qua thẻ lật tương tác và câu đố trắc nghiệm.
-                </p>
-              </div>
-            </div>
-
-            {/* Quote Badge */}
-            <div className="p-4 rounded-2xl bg-muted/40 border border-border/50 flex items-center gap-3 max-w-lg">
-              <Flame className="w-6 h-6 text-amber-500 flex-shrink-0 animate-pulse" />
-              <p className="text-xs text-muted-foreground italic leading-relaxed">
-                "Duy trì thói quen đọc 1 bài báo mỗi ngày giúp bạn tích lũy hơn 2,000 từ vựng học thuật tự nhiên trong 3 tháng."
-              </p>
-            </div>
-          </div>
-
-          {/* Right Column: Auth Card */}
-          <div className="lg:col-span-5">
-            <div className="w-full max-w-md mx-auto bg-card text-card-foreground rounded-3xl shadow-xl border border-border/80 p-6 sm:p-8 space-y-6">
-              
-              {/* Header Title */}
-              <div className="text-center space-y-1">
-                <h3 className="text-2xl font-black tracking-tight text-foreground">
-                  {tab === "signin" ? "Đăng nhập tài khoản" : "Tạo tài khoản học tập"}
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  {tab === "signin" ? "Chọn phương thức đăng nhập để tiếp tục" : "Điền thông tin để bắt đầu hành trình"}
-                </p>
-              </div>
-
-              {/* Tab Switcher */}
-              <div className="flex p-1 bg-muted/60 rounded-xl border border-border/50">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTab("signin");
-                    setErrorMsg(null);
-                    setConfirmPassword("");
-                  }}
-                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                    tab === "signin"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Đăng nhập
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTab("signup");
-                    setErrorMsg(null);
-                    setConfirmPassword("");
-                  }}
-                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                    tab === "signup"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Đăng ký mới
-                </button>
-              </div>
-
               {/* Error Alert Banner */}
               {errorMsg && (
-                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-start gap-2.5 text-rose-600 dark:text-rose-400 text-xs animate-in fade-in duration-150">
+                <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-start gap-2.5 text-rose-600 dark:text-rose-400 text-xs animate-in fade-in duration-150">
                   <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-500" />
                   <span className="leading-relaxed font-medium">{errorMsg}</span>
                 </div>
               )}
 
-              {/* Social Login Buttons (Google & Facebook) */}
-              <div className="space-y-2.5">
-                {/* Google Button */}
+              {/* Primary Action Buttons */}
+              <div className="space-y-3">
+                {/* Google OAuth Button */}
                 <button
                   type="button"
                   disabled={isLoading}
                   onClick={() => handleSocialLogin("google")}
-                  className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl border border-border/80 bg-background hover:bg-muted/60 text-foreground font-semibold text-sm transition-all hover:shadow-sm cursor-pointer disabled:opacity-60"
+                  className="w-full h-12 flex items-center justify-center gap-3 px-4 rounded-2xl border border-border/90 bg-background hover:bg-muted/70 active:scale-[0.99] text-foreground font-bold text-sm shadow-sm hover:shadow transition-all duration-200 cursor-pointer disabled:opacity-60"
                 >
                   {loadingProvider === "google" ? (
                     <Loader2 className="w-5 h-5 animate-spin text-rose-600" />
@@ -377,17 +286,17 @@ export default function LoginPage() {
                   <span>Tiếp tục với Google</span>
                 </button>
 
-                {/* Facebook Button */}
+                {/* Facebook OAuth Button */}
                 <button
                   type="button"
                   disabled={isLoading}
                   onClick={() => handleSocialLogin("facebook")}
-                  className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl border border-[#1877F2]/30 bg-[#1877F2] hover:bg-[#166FE5] text-white font-semibold text-sm transition-all hover:shadow-md hover:shadow-[#1877F2]/20 cursor-pointer disabled:opacity-60"
+                  className="w-full h-12 flex items-center justify-center gap-3 px-4 rounded-2xl border border-border/90 bg-background hover:bg-muted/70 active:scale-[0.99] text-foreground font-bold text-sm shadow-sm hover:shadow transition-all duration-200 cursor-pointer disabled:opacity-60"
                 >
                   {loadingProvider === "facebook" ? (
-                    <Loader2 className="w-5 h-5 animate-spin text-white" />
+                    <Loader2 className="w-5 h-5 animate-spin text-[#1877F2]" />
                   ) : (
-                    <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 fill-[#1877F2]" viewBox="0 0 24 24">
                       <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
                     </svg>
                   )}
@@ -395,184 +304,23 @@ export default function LoginPage() {
                 </button>
               </div>
 
-              {/* Divider */}
-              <div className="relative flex items-center justify-center">
-                <div className="w-full border-t border-border/60" />
-                <span className="absolute bg-card px-3 text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">
-                  hoặc email
-                </span>
-              </div>
-
-              {/* Form */}
-              <form onSubmit={handleEmailSubmit} className="space-y-3.5">
-                {tab === "signup" && (
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-foreground">Họ và tên</label>
-                    <div className="relative">
-                      <UserIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                      <input
-                        type="text"
-                        required
-                        placeholder="Ví dụ: Hoàng Minh"
-                        value={name}
-                        onChange={(e) => {
-                          setName(e.target.value);
-                          if (errorMsg) setErrorMsg(null);
-                        }}
-                        className="w-full text-sm pl-9 pr-3.5 py-2 rounded-xl border border-border bg-muted/40 focus:bg-background focus:outline-none focus:ring-2 focus:ring-rose-500/30"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-foreground">Email</label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <input
-                      type="email"
-                      required
-                      placeholder="name@example.com"
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        if (errorMsg) setErrorMsg(null);
-                      }}
-                      className="w-full text-sm pl-9 pr-3.5 py-2 rounded-xl border border-border bg-muted/40 focus:bg-background focus:outline-none focus:ring-2 focus:ring-rose-500/30"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold text-foreground">Mật khẩu</label>
-                    {tab === "signin" && (
-                      <button
-                        type="button"
-                        onClick={() => alert("Tính năng gửi link đặt lại mật khẩu về email đang được kích hoạt!")}
-                        className="text-[11px] text-rose-600 hover:underline"
-                      >
-                        Quên mật khẩu?
-                      </button>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      required
-                      placeholder={tab === "signup" ? "Tối thiểu 6 ký tự" : "••••••••"}
-                      value={password}
-                      onChange={(e) => {
-                        setPassword(e.target.value);
-                        if (errorMsg) setErrorMsg(null);
-                      }}
-                      className="w-full text-sm pl-9 pr-10 py-2 rounded-xl border border-border bg-muted/40 focus:bg-background focus:outline-none focus:ring-2 focus:ring-rose-500/30"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Xác nhận mật khẩu (Chỉ hiển thị khi Đăng ký mới) */}
-                {tab === "signup" && (
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold text-foreground">Xác nhận mật khẩu</label>
-                      {confirmPassword && (
-                        <span className={`text-[11px] font-medium flex items-center gap-1 ${
-                          password === confirmPassword ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"
-                        }`}>
-                          {password === confirmPassword ? (
-                            <>
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Mật khẩu khớp
-                            </>
-                          ) : (
-                            "Chưa khớp"
-                          )}
-                        </span>
-                      )}
-                    </div>
-                    <div className="relative">
-                      <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                      <input
-                        type={showConfirmPassword ? "text" : "password"}
-                        required
-                        placeholder="Nhập lại mật khẩu"
-                        value={confirmPassword}
-                        onChange={(e) => {
-                          setConfirmPassword(e.target.value);
-                          if (errorMsg) setErrorMsg(null);
-                        }}
-                        className={`w-full text-sm pl-9 pr-10 py-2 rounded-xl border bg-muted/40 focus:bg-background focus:outline-none focus:ring-2 ${
-                          confirmPassword && password !== confirmPassword
-                            ? "border-rose-400 focus:ring-rose-500/30"
-                            : confirmPassword && password === confirmPassword
-                            ? "border-emerald-400 focus:ring-emerald-500/30"
-                            : "border-border focus:ring-rose-500/30"
-                        }`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <Button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 rounded-xl shadow-md shadow-rose-600/30 cursor-pointer"
-                >
-                  {isLoading && loadingProvider === "email" ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : null}
-                  {tab === "signin" ? "Đăng nhập ngay" : "Tạo tài khoản học tập"}
-                </Button>
-              </form>
-
-              {/* One-click Local Review Testing Box */}
-              <div className="pt-2 border-t border-border/60 space-y-2">
-                <span className="text-[11px] text-muted-foreground font-semibold block text-center">
-                  🛠️ Trải nghiệm nhanh trên môi trường Local:
-                </span>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleSocialLogin("google")}
-                    className="p-2 rounded-xl border border-border hover:bg-muted/60 text-xs font-semibold text-foreground flex items-center justify-center gap-1.5 transition-colors"
-                  >
-                    <span>Google Demo</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSocialLogin("facebook")}
-                    className="p-2 rounded-xl border border-border hover:bg-muted/60 text-xs font-semibold text-foreground flex items-center justify-center gap-1.5 transition-colors"
-                  >
-                    <span>Facebook Demo</span>
-                  </button>
-                </div>
+              {/* Micro trust info */}
+              <div className="pt-2 text-center">
+                <p className="text-[11px] text-muted-foreground/80 leading-relaxed">
+                  Bằng việc đăng nhập, bạn đồng ý với mục tiêu rèn luyện và chính sách bảo mật dữ liệu học tập cá nhân.
+                </p>
               </div>
 
             </div>
           </div>
 
         </div>
-      </div>
+      </main>
 
-      {/* Simple Footer */}
-      <div className="border-t border-border/40 py-4 text-center text-xs text-muted-foreground">
-        © 2026 VnE Reader English. Nền tảng học tiếng Anh qua dữ liệu báo chí VnExpress.
-      </div>
+      {/* Footer */}
+      <footer className="py-4 text-center text-xs text-muted-foreground relative z-10">
+        © 2026 VnE Reader. Nền tảng học tiếng Anh qua dữ liệu báo chí quốc tế.
+      </footer>
     </div>
   );
 }

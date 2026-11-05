@@ -17,7 +17,8 @@ export type PublicationSourceId =
   | 'npr' 
   | 'gutenberg' 
   | 'globalvoices'
-  | 'hony';
+  | 'hony'
+  | 'kids';
 export type ActiveSourceFilter = 'all' | PublicationSourceId;
 
 export interface PublicationSource {
@@ -54,7 +55,7 @@ export interface NewsItem {
   sourceName?: string; // 'VnExpress International' | 'Humans of New York'
   readingTimeMinutes: number;
   wordCount: number;
-  cefrLevel: 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+  cefrLevel: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
   difficultyScore: number; // 1 to 5
 }
 
@@ -77,7 +78,7 @@ export interface ArticleDetail {
   paragraphs: ArticleParagraph[];
   author?: string;
   wordCount: number;
-  cefrLevel: 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+  cefrLevel: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
   keyVocabulary: KeyVocab[];
 }
 

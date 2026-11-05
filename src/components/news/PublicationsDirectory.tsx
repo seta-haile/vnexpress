@@ -185,12 +185,14 @@ export function PublicationsDirectory({
                   className="group relative rounded-3xl border border-border/80 bg-card hover:bg-card/95 transition-all duration-300 hover:shadow-xl hover:shadow-black/5 hover:-translate-y-1 overflow-hidden flex flex-col justify-between"
                 >
                   {/* Top Image Banner */}
-                  <div className="relative h-36 w-full overflow-hidden bg-muted">
-                    <Image
+                  <div className={`relative h-36 w-full overflow-hidden bg-gradient-to-tr ${source.gradient}`}>
+                    <img
                       src={source.coverImage}
                       alt={source.name}
-                      fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                      className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = "none";
+                      }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-card via-card/40 to-transparent" />
                     

@@ -18,23 +18,65 @@ const VALID_VOICES: Record<string, string> = {
   "en-GB-RyanNeural": "en-GB-RyanNeural"
 };
 
-export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const text = searchParams.get("text") || searchParams.get("q");
-    const voiceKey = searchParams.get("voice") || "female-mature";
-    const rate = searchParams.get("rate") || "0%";
-    const pitch = searchParams.get("pitch") || "0Hz";
+/**
+ * Fallback TTS provider using Google Translate TTS service
+ * Supports chunking text into <= 180 characters and concatenating MP3 chunks
+ */
+async function generateGoogleTTS(text: string, lang = "en"): Promise<Buffer> {
+  const words = text.split(/\s+/);
+  const textChunks: string[] = [];
+  let cur = "";
 
-    if (!text || !text.trim()) {
-      return NextResponse.json({ error: "Text is required" }, { status: 400 });
+  for (const w of words) {
+    if ((cur + " " + w).length > 180) {
+      if (cur) textChunks.push(cur.trim());
+      cur = w;
+    } else {
+      cur += (cur ? " " : "") + w;
     }
+  }
+  if (cur.trim()) textChunks.push(cur.trim());
 
-    // Limit text length per request to 2000 chars for optimal streaming
-    const cleanText = text.slice(0, 2000).trim();
-    const selectedVoice = VALID_VOICES[voiceKey] || "en-US-JennyNeural";
+  const buffers = await Promise.all(
+    textChunks.map(async (chunk) => {
+      const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(
+        chunk
+      )}&tl=${lang}&client=tw-ob`;
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Referer: "https://translate.google.com/"
+        }
+      });
+      if (!res.ok) {
+        throw new Error(`Google TTS failed with status ${res.status}`);
+      }
+      return Buffer.from(await res.arrayBuffer());
+    })
+  );
 
-    const tts = new MsEdgeTTS();
+  return Buffer.concat(buffers);
+}
+
+/**
+ * Synthesize speech audio using MsEdgeTTS (primary) and Google TTS (fallback)
+ */
+async function synthesizeSpeechAudio(
+  text: string,
+  voiceKey: string,
+  rate = "0%",
+  pitch = "0Hz"
+): Promise<Buffer> {
+  const cleanText = text.slice(0, 3000).trim();
+  const selectedVoice = VALID_VOICES[voiceKey] || "en-US-JennyNeural";
+
+  // Tier 1: Try Neural Edge TTS
+  try {
+    const tts = new MsEdgeTTS({
+      connectionTimeoutMs: 3500,
+      synthesisTimeoutMs: 12000
+    });
     await tts.setMetadata(selectedVoice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
 
     const readable = tts.toStream(cleanText, {
@@ -55,73 +97,33 @@ export async function GET(req: NextRequest) {
       });
     });
 
-    const audioBuffer = Buffer.concat(chunks);
-
-    return new NextResponse(audioBuffer, {
-      status: 200,
-      headers: {
-        "Content-Type": "audio/mpeg",
-        "Content-Length": audioBuffer.length.toString(),
-        "Cache-Control": "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400"
-      }
-    });
-  } catch (error: any) {
-    console.error("TTS API Error:", error);
-    return NextResponse.json(
-      { error: "Failed to generate AI speech", details: error?.message || String(error) },
-      { status: 500 }
-    );
+    if (chunks.length > 0) {
+      return Buffer.concat(chunks);
+    }
+  } catch (edgeError: any) {
+    console.warn("Neural Edge TTS failed, activating Google TTS fallback:", edgeError?.message || edgeError);
   }
+
+  // Tier 2: Seamless fallback to Google TTS
+  return await generateGoogleTTS(cleanText, "en");
+}
+
+export async function GET(req: NextRequest) {
+  // TTS serverless route is disabled to prevent quota exhaustion.
+  // Speech synthesis is handled completely on the client side using Web Speech API.
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Cache-Control": "public, max-age=604800, s-maxage=2592000"
+    }
+  });
 }
 
 export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { text, voice = "female-mature", rate = "0%", pitch = "0Hz" } = body;
-
-    if (!text || !text.trim()) {
-      return NextResponse.json({ error: "Text is required" }, { status: 400 });
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Cache-Control": "public, max-age=604800, s-maxage=2592000"
     }
-
-    const cleanText = text.slice(0, 4000).trim();
-    const selectedVoice = VALID_VOICES[voice] || "en-US-JennyNeural";
-
-    const tts = new MsEdgeTTS();
-    await tts.setMetadata(selectedVoice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-
-    const readable = tts.toStream(cleanText, {
-      rate: rate.startsWith("+") || rate.startsWith("-") ? rate : `${rate}`,
-      pitch: pitch.startsWith("+") || pitch.startsWith("-") ? pitch : `${pitch}`
-    });
-
-    const chunks: Buffer[] = [];
-    await new Promise<void>((resolve, reject) => {
-      readable.audioStream.on("data", (chunk: Buffer) => {
-        chunks.push(chunk);
-      });
-      readable.audioStream.on("end", () => {
-        resolve();
-      });
-      readable.audioStream.on("error", (err: any) => {
-        reject(err);
-      });
-    });
-
-    const audioBuffer = Buffer.concat(chunks);
-
-    return new NextResponse(audioBuffer, {
-      status: 200,
-      headers: {
-        "Content-Type": "audio/mpeg",
-        "Content-Length": audioBuffer.length.toString(),
-        "Cache-Control": "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400"
-      }
-    });
-  } catch (error: any) {
-    console.error("TTS POST API Error:", error);
-    return NextResponse.json(
-      { error: "Failed to generate AI speech", details: error?.message || String(error) },
-      { status: 500 }
-    );
-  }
+  });
 }

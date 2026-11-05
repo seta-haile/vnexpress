@@ -53,7 +53,44 @@ export const CURATED_VOCAB: Record<string, {
   heritage: { ipa: "/ˈherɪtɪdʒ/", pos: "noun", vi: "di sản", en: "Property or culture that is or may be inherited.", cefr: "B2", example: "Hoi An ancient town is a UNESCO world heritage site." },
   hospitality: { ipa: "/ˌhɒspɪˈtæləti/", pos: "noun", vi: "sự hiếu khách, ngành khách sạn", en: "The friendly and generous reception and entertainment of guests or visitors.", cefr: "B2", example: "Vietnam is renowned for its warm hospitality." },
   cuisine: { ipa: "/kwɪˈziːn/", pos: "noun", vi: "ẩm thực", en: "A style or method of cooking, especially as characteristic of a particular country or region.", cefr: "B2", example: "Traditional Vietnamese cuisine balances fresh herbs and savory broths." },
-  scenic: { ipa: "/ˈsiːnɪk/", pos: "adj", vi: "đẹp mắt, danh lam thắng cảnh", en: "Providing or relating to views of impressive or beautiful natural scenery.", cefr: "B2", example: "Visitors enjoyed the scenic mountain passes in Ha Giang." }
+  scenic: { ipa: "/ˈsiːnɪk/", pos: "adj", vi: "đẹp mắt, danh lam thắng cảnh", en: "Providing or relating to views of impressive or beautiful natural scenery.", cefr: "B2", example: "Visitors enjoyed the scenic mountain passes in Ha Giang." },
+
+  // Kids, Fables & Science Wonders
+  tortoise: { ipa: "/ˈtɔːtəs/", pos: "noun", vi: "con rùa (cạn)", en: "A slow-moving reptile with a hard round shell.", cefr: "A1", example: "The patient tortoise won the race against the hare." },
+  hare: { ipa: "/heə(r)/", pos: "noun", vi: "con thỏ rừng", en: "A fast-running animal like a large rabbit with long ears.", cefr: "A1", example: "The swift hare ran across the green field." },
+  shepherd: { ipa: "/ˈʃepəd/", pos: "noun", vi: "người chăn cừu", en: "A person whose job is to take care of sheep.", cefr: "A2", example: "The young shepherd watched his flock on the hillside." },
+  fable: { ipa: "/ˈfeɪbl/", pos: "noun", vi: "truyện ngụ ngôn", en: "A short story, typically with animals as characters, conveying a moral.", cefr: "A2", example: "Aesop's fables teach valuable life lessons." },
+  creature: { ipa: "/ˈkriːtʃə(r)/", pos: "noun", vi: "sinh vật, con vật", en: "An animal or living being, as distinct from a human.", cefr: "A2", example: "The little mouse was a helpful creature." },
+  kindness: { ipa: "/ˈkaɪndnəs/", pos: "noun", vi: "lòng tốt, sự tử tế", en: "The quality of being friendly, generous, and considerate.", cefr: "A1", example: "A small act of kindness can change a life." },
+  patient: { ipa: "/ˈpeɪʃnt/", pos: "adj", vi: "kiên nhẫn, kiên trì", en: "Able to accept or tolerate delays or suffering without getting angry.", cefr: "A2", example: "Be patient and practice every day." },
+  greedy: { ipa: "/ˈɡriːdi/", pos: "adj", vi: "tham lam", en: "Having an excessive desire for more food, money, or possessions.", cefr: "A2", example: "Do not be greedy with your toys." },
+  clever: { ipa: "/ˈklevə(r)/", pos: "adj", vi: "thông minh, khéo léo", en: "Quick to understand, learn, and devise or apply ideas.", cefr: "A1", example: "The clever fox tried to reach the grapes." },
+  whisper: { ipa: "/ˈwɪspə(r)/", pos: "verb/noun", vi: "thì thầm", en: "Speak very softly using one's breath without vibrating vocal cords.", cefr: "A2", example: "She whispered a secret in my ear." },
+  breeze: { ipa: "/briːz/", pos: "noun", vi: "làn gió nhẹ, gió mát", en: "A gentle wind.", cefr: "A2", example: "A cool summer breeze blew through the garden." },
+  atmosphere: { ipa: "/ˈætməsfɪə(r)/", pos: "noun", vi: "bầu khí quyển", en: "The envelope of gases surrounding the earth or another planet.", cefr: "B1", example: "The Earth's atmosphere protects us from harmful radiation." },
+  scattering: { ipa: "/ˈskætərɪŋ/", pos: "noun", vi: "sự tán xạ (ánh sáng)", en: "The process in which particles or light rays are deflected in various directions.", cefr: "B1", example: "Rayleigh scattering makes the sky look blue." },
+  nectar: { ipa: "/ˈnektə(r)/", pos: "noun", vi: "mật hoa", en: "A sugary fluid secreted within flowers to encourage pollination by insects.", cefr: "A2", example: "Honeybees sip sweet nectar from colorful blossoms." },
+  predator: { ipa: "/ˈpredətə(r)/", pos: "noun", vi: "động vật ăn thịt, thú săn mồi", en: "An animal that naturally preys on others.", cefr: "B1", example: "The T-Rex was a mighty prehistoric predator." },
+  enormous: { ipa: "/ɪˈnɔːməs/", pos: "adj", vi: "to lớn, khổng lồ", en: "Very large in size, quantity, or extent.", cefr: "A2", example: "Blue whales are enormous sea mammals." },
+  magnificent: { ipa: "/mæɡˈnɪfɪsnt/", pos: "adj", vi: "tráng lệ, tuyệt vời", en: "Extremely beautiful, elaborate, or impressive.", cefr: "B1", example: "The solar eclipse was a magnificent view." },
+  terrified: { ipa: "/ˈterɪfaɪd/", pos: "adj", vi: "kinh hãi, khiếp sợ", en: "Cause to feel extreme fear.", cefr: "A2", example: "The little mouse was terrified of the roaring lion." },
+  shiver: { ipa: "/ˈʃɪvə(r)/", pos: "verb", vi: "run rẩy (vì lạnh hoặc sợ)", en: "Shake slightly and uncontrollably as a result of being cold or frightened.", cefr: "A2", example: "The poor grasshopper shivered in the winter snow." },
+
+  // Gaming, Play & Tech for Kids
+  minecraft: { ipa: "/ˈmaɪnkrɑːft/", pos: "noun", vi: "trò chơi thế giới khối vuông Minecraft", en: "A popular 3D sandbox video game about mining blocks and building structures.", cefr: "A1", example: "Kids love playing Minecraft to build creative castles." },
+  roblox: { ipa: "/ˈroʊblɒks/", pos: "noun", vi: "vũ trụ game trực tuyến Roblox", en: "An online platform where users can program and play games created by others.", cefr: "A1", example: "Roblox allows players to design their own virtual worlds." },
+  cube: { ipa: "/kjuːb/", pos: "noun", vi: "khối lập phương, khối vuông", en: "A symmetrical three-dimensional shape, either solid or hollow, contained by six equal squares.", cefr: "A1", example: "Minecraft is made of millions of 3D cubes." },
+  pixel: { ipa: "/ˈpɪksl/", pos: "noun", vi: "điểm ảnh (pixel)", en: "A minute area of illumination on a display screen.", cefr: "A2", example: "Classic retro games used colorful 8-bit pixels." },
+  crafting: { ipa: "/ˈkrɑːftɪŋ/", pos: "noun", vi: "chế tạo vật phẩm (trong game)", en: "The skill of making things, especially combining raw materials in video games.", cefr: "A2", example: "Crafting a diamond pickaxe requires sticks and diamonds." },
+  avatar: { ipa: "/ˈævətɑː(r)/", pos: "noun", vi: "nhân vật đại diện (avatar)", en: "An icon or figure representing a particular person in video games and internet forums.", cefr: "A2", example: "You can dress up your avatar with cool hats and shoes." },
+  multiplayer: { ipa: "/ˈmʌltipleɪə(r)/", pos: "adj", vi: "chơi nhiều người cùng lúc", en: "Denoting a video game designed for more than one player at the same time.", cefr: "A2", example: "Playing multiplayer games with classmates is super fun." },
+  strategy: { ipa: "/ˈstrætədʒi/", pos: "noun", vi: "chiến thuật, chiến lược", en: "A plan of action designed to achieve a long-term or overall aim.", cefr: "B1", example: "Winning in chess requires patience and smart strategy." },
+  puzzle: { ipa: "/ˈpʌzl/", pos: "noun", vi: "trò chơi giải đố, câu đố trí tuệ", en: "A game, toy, or problem designed to test ingenuity or knowledge.", cefr: "A2", example: "Solving jigsaw puzzles exercises the young mind." },
+  obstacle: { ipa: "/ˈɒbstəkl/", pos: "noun", vi: "chướng ngại vật", en: "A thing that blocks one's way or prevents or hinders progress.", cefr: "B1", example: "Run through the obstacle course without falling!" },
+  invincible: { ipa: "/ɪnˈvɪnsəbl/", pos: "adj", vi: "bất khả chiến bại, vô địch", en: "Too powerful to be defeated or overcome.", cefr: "B2", example: "Mario grabbed the Super Star and became invincible." },
+  architect: { ipa: "/ˈɑːkɪtekt/", pos: "noun", vi: "kiến trúc sư", en: "A person who designs buildings and in many cases also supervises their construction.", cefr: "B1", example: "Building complex Lego models inspires future architects." },
+  glitch: { ipa: "/ɡlɪtʃ/", pos: "noun", vi: "lỗi nhỏ trong phần mềm/game", en: "A sudden, usually temporary malfunction or fault in equipment.", cefr: "B1", example: "Game testers play levels repeatedly to fix visual glitches." },
+  opponent: { ipa: "/əˈpəʊnənt/", pos: "noun", vi: "đối thủ", en: "Someone who competes with or opposes another in a contest, game, or argument.", cefr: "B1", example: "Shake hands with your opponent before a chess match." }
 };
 
 export function cleanWord(raw: string): string {
